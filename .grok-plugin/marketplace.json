@@ -1,0 +1,25 @@
+{
+  "name": "free-research-skill",
+  "owner": {
+    "name": "Jan M",
+    "url": "https://github.com/AhjinGuild12"
+  },
+  "description": "Marketplace for the free-research plugin",
+  "plugins": [
+    {
+      "name": "free-research",
+      "description": "Free-first multi-source research. last30days community pulse plus TinyFish search/fetch, with optional Exa/Brave escalation.",
+      "version": "1.0.0",
+      "category": "productivity",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/AhjinGuild12/free-research-skill.git"
+      },
+      "homepage": "https://github.com/AhjinGuild12/free-research-skill",
+      "keywords": [
+        "free-research",
+        "free research"
+      ]
+    }
+  ]
+}

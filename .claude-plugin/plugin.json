@@ -1,0 +1,16 @@
+{
+  "name": "free-research",
+  "version": "1.0.0",
+  "description": "Free-first multi-source research. last30days community pulse plus TinyFish search/fetch, with optional Exa/Brave escalation.",
+  "author": {
+    "name": "Jan M",
+    "url": "https://github.com/AhjinGuild12"
+  },
+  "homepage": "https://github.com/AhjinGuild12/free-research-skill",
+  "repository": "https://github.com/AhjinGuild12/free-research-skill",
+  "license": "MIT",
+  "keywords": [
+    "free-research",
+    "free research"
+  ]
+}
