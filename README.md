@@ -111,9 +111,10 @@ Never calls Exa or Brave. If the pass is thin, the report offers `--balanced` or
 
 ## Manual (developer)
 
+Copy the repo skill directory onto the live skills-folder copy and the skill-pack copy, including `references/`. Do not symlink this repo over a newer live tree. The installed plugin checkout is a separate publish and is not updated by that copy.
+
 ```bash
 git clone https://github.com/AhjinGuild12/free-research-skill.git
-ln -s "$(pwd)/free-research-skill/skills/free-research" ~/.grok/skills/free-research
 ```
 
 ```bash
