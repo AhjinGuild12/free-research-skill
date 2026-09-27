@@ -147,6 +147,17 @@ Covers R4 including `--deep`.
 - **Integration:** Sweep URLs do not add a `gap:` line and do not call Firecrawl, Exa, Brave, or `parallel-cli`.
 - **Second turn:** Does not spawn passes, does not sweep, and does not spend. A dissent label does not add a `gap:` line.
 
+## T15. Vault note is not proof
+
+- **Happy:** One finished run resolves `~/Documents/Jan Obsidian/Jan M/1. Projects/Improved Search free-research/runs/`. It writes one slug file. Frontmatter has a parseable `expires` date and `marker: run-note`. The marker is not a source type. The body has the finding labels, the http or https URLs fetched this run, and the closing line. Nothing else.
+- **Edge:** A resume and a later run on the same topic replace that file. They do not create a second file. A sibling slug is neither read nor deleted. An unexpired note's confirmed labels do not enter the ledger, do not count as a usable body, and do not close a facet.
+- **Expired:** The note's `expires` date is before today. Its prose is not proof. The run free-fetches the stored URLs and judges those fetches as new bodies. The old labels are not restored if a fetch succeeds or fails. Expiry does not create a `gap:` line. The note is not deleted.
+- **Undated:** A missing `expires`, or a value that is not a date, counts as expired. Same unbelieved prose. No `gap:` line.
+- **Rename:** A failed rename leaves the previous slug file unchanged and does not leave the scratch as a second note.
+- **Missed root:** The project folder cannot be resolved, or the slug contains `..` or a slash. No file is written under `raw/`, `3. Resources/X Articles/`, `.firecrawl/`, the skill tree, or the working directory. Tools Used records one skip line. The chat report still returns.
+- **Same invocation:** A later turn does not read the note as a new run.
+- **Secrets:** The note, the report, Tools Used, and the skill files do not contain API keys, environment values, or credential-file contents.
+
 ---
 
 ## Live smokes (U4 runs these; this file is the pass bar)
