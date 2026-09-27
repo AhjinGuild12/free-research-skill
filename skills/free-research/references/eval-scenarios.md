@@ -130,6 +130,23 @@ Covers R4 including `--deep`.
 - **Forbidden:** Treating the keyword hit as caption text or as a page body. Sending a YouTube watch page to Firecrawl to recover captions. Pip-installing the transcript package.
 - **Tools Used:** a thread fetch is its own line when it ran. A keyword hit is not listed as a thread fetch. last30days stays one line.
 
+## T10. Vote flip
+
+- **Happy:** One primary full text is in hand. Correctness, recency, and source quality all pass. The finding stays confirmed. The Executive Summary may state it.
+- **Edge:** The recency pass has no date, so that pass fails. A second pass also fails. The majority failure flips the label to unconfirmed. The sentence stays in the report, outside the Executive Summary and Actionable Takeaways. An abstention counts as a failure. A missing critique is not a pass and is not an abstention. The finding stays unconfirmed until all three critiques are recorded.
+- **Error:** A pass that searches or calls Exa is out of contract. Deep-research is not invoked. The passes do not raise an unconfirmed finding to confirmed.
+- **Second turn:** The tally is already written. The next message does not set a mode, does not opt into Parallel, and does not name a new topic. Do not spawn a second set of passes. Finish a missing critique in place and do not discard a finished one. Do not spend.
+
+## T11. One sweep
+
+- **Happy:** One finding is still confirmed after the vote. The sweep's only hit is a thinner objection, with no contradicting primary body in hand. The label is confirmed with dissent attached. The objection is on the ledger. The sentence stays.
+- **Flip:** The sweep fetches a contradicting primary and that full text is in hand. That finding becomes unconfirmed. A search hit alone does not flip it.
+- **Skip:** Nothing is still confirmed. Write an explicit skip. Do not search.
+- **Not the sweep:** The Step 3 limitations angle does not count as this sweep and does not open the remaining-gap gate.
+- **Budget:** At most one TinyFish or host search, one free fetch of the single strongest contradicting web URL, and one X keyword search plus one thread fetch. A sweep that already issued its one search is finished. A second sweep does not run.
+- **Integration:** Sweep URLs do not add a `gap:` line and do not call Firecrawl, Exa, Brave, or `parallel-cli`.
+- **Second turn:** Does not spawn passes, does not sweep, and does not spend. A dissent label does not add a `gap:` line.
+
 ---
 
 ## Live smokes (U4 runs these; this file is the pass bar)
