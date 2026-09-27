@@ -1,7 +1,7 @@
 {
   "name": "free-research",
   "version": "1.0.0",
-  "description": "Free-first multi-source research. last30days community pulse plus TinyFish search/fetch, with optional Exa/Brave escalation.",
+  "description": "Free-first multi-source research. last30days community pulse plus TinyFish search/fetch, with a remaining-gap gate before Exa, Brave, and Firecrawl.",
   "author": {
     "name": "Jan M",
     "url": "https://github.com/AhjinGuild12"

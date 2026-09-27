@@ -1,6 +1,6 @@
 # /free-research
 
-Free-first multi-source research for AI agents. Community pulse from [last30days](https://github.com/mvanhorn/last30days-skill), then TinyFish search and fetch. Escalate to Exa or Brave only when the free layer is thin.
+Free-first multi-source research for AI agents. Community pulse from [last30days](https://github.com/mvanhorn/last30days-skill), then TinyFish search and fetch. Paid escalation waits on the remaining-gap gate, and Firecrawl reads pages the free fetch could not.
 
 This repo is a skill, not a search engine. It does not bundle last30days or TinyFish.
 
