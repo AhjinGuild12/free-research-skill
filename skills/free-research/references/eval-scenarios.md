@@ -116,6 +116,20 @@ Covers R4 including `--deep`.
 - **Last line,** after Follow-up Options: `your agent is only as good as the worst source it believed.`
 - **Forbidden:** renaming a section; asserting the unconfirmed claim in the summary; an Exa, Firecrawl, Brave, or Parallel call caused by the unconfirmed label when the gap list is empty.
 
+## T13. Missing transcript
+
+- **Error:** A report-level claim depends on one discovered video. The transcript package does not import, or the video has no captions. Tools Used says the captions are missing. No captions are invented. No `pip install` runs. The watch page is not sent to Firecrawl, Exa, or Brave to recover captions.
+- **Happy:** Person intent. One load-bearing video id and one post URL. The run reads and follows the transcript skill for that video's captions and does not search inside that skill. It thread-fetches that one post. Those bodies can enter the url-ledger and the evidence ledger as full text.
+- **Edge:** A third discovered video is not fetched. At most two videos, and only when a report-level claim depends on them. A last30days transcript excerpt is not full text.
+- **Tools Used:** the transcript fetch is its own line when it ran. last30days stays one line.
+
+## T14. Keyword hit is not a body
+
+- **Integration:** An X keyword hit or semantic hit without a thread fetch is a lead, not full text. It does not confirm a finding and does not enter the url-ledger.
+- **Edge:** A general intent does not run live X before the gate. Person or news may fetch at most three threads before the gate. A third thread is not fetched in that pass.
+- **Forbidden:** Treating the keyword hit as caption text or as a page body. Sending a YouTube watch page to Firecrawl to recover captions. Pip-installing the transcript package.
+- **Tools Used:** a thread fetch is its own line when it ran. A keyword hit is not listed as a thread fetch. last30days stays one line.
+
 ---
 
 ## Live smokes (U4 runs these; this file is the pass bar)
