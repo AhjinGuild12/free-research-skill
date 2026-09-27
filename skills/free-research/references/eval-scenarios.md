@@ -97,6 +97,25 @@ Covers R4 including `--deep`.
 - **Gate:** emit `remaining-gaps: none`. Zero paid calls.
 - **Tools Used:** free layer; `remaining-gaps: none`. Omit Deep Insights.
 
+## T9. Confirmation is not a spend switch
+
+- **Happy:** Free mode. TinyFish fetched the organization's own docs page for the claim. No second origin is in hand. The facet closes because that page is a usable body. The evidence label may be confirmed. The Executive Summary may state that finding. No Exa, Firecrawl, Brave, or `parallel-cli`.
+- **Edge:** Free mode. Three articles syndicate one press release. No primary body is in hand. That is one origin. The finding stays unconfirmed. Do not write `gap:` because it is unconfirmed or short of three origins. No Exa, Firecrawl, Brave, or Parallel call.
+- **Error:** An Exa highlight arrives with no page body. The highlight is a lead. It does not enter the url-ledger, does not close the facet, and does not confirm the finding.
+- **Second turn, free:** The gap list is already empty and the finding is unconfirmed. The next message does not set a mode, does not opt into Parallel, and does not name a new topic. Re-read Step 4. Do not append `gap:`. Do not call Exa, Firecrawl, Brave, or Parallel.
+- **Second turn, balanced:** Same empty gap list and the same unconfirmed label. The original invocation was balanced. Re-read Step 4. Still no Exa, Firecrawl, Brave, or Parallel call.
+- **Tools Used:** last30days stays one line. Paid tools appear only if Step 4 actually ran them before the gate returned.
+
+## T17. Summary does not assert an unconfirmed claim
+
+- **Input:** A finished run. One finding is unconfirmed. The remaining-gap list is empty, including when the mode is balanced.
+- **Headings:** names and order through Follow-up Options stay Executive Summary, Key Developments, Community Sentiment, Deep Insights, Best Takes, Comparison / Gaps, Actionable Takeaways, Tools Used, Follow-up Options. Deep Insights and Comparison / Gaps stay conditional, as the template already says.
+- **Executive Summary:** does not assert the unconfirmed claim. When nothing is confirmed, it says the run did not confirm an answer.
+- **Actionable Takeaways:** same rule. A confirmed-with-dissent finding appears in either of those two sections only in a sentence that includes the label "confirmed with dissent attached" and the objection.
+- **Other sections:** may carry the finding with the label unconfirmed.
+- **Last line,** after Follow-up Options: `your agent is only as good as the worst source it believed.`
+- **Forbidden:** renaming a section; asserting the unconfirmed claim in the summary; an Exa, Firecrawl, Brave, or Parallel call caused by the unconfirmed label when the gap list is empty.
+
 ---
 
 ## Live smokes (U4 runs these; this file is the pass bar)

@@ -126,9 +126,9 @@ or, if none:
 remaining-gaps: none
 ```
 
-A named facet is **closed** when a usable full-page body from a primary or official source answers it, or the last tool returned no new URLs for it. Wanting a stronger source is not a remaining gap. Leftover scrapes apply only to already-discovered URLs that still lack a usable body; they do not keep a facet open after such a body exists.
+A named facet is **closed** when a usable body answers it, or the last Step 4 family returned no new URLs for it. That close test does not use origin count or the confirmation label. Full text that fails the confirmation bar still closes the facet. Wanting a stronger source is not a remaining gap. An unconfirmed label, a missing third origin, a missing primary, or a downgrade is not a remaining gap and is not a `gap:` line. Leftover scrapes apply only to already-discovered URLs that still lack a usable body; they do not keep a facet open after such a body exists.
 
-**Usable body:** extracted main text that answers the named facet. Not titles, last30days snippets, empty pages, or nav-only markdown.
+**Usable body:** extracted main text that answers the named facet. Not titles, last30days snippets, empty pages, nav-only markdown, or an Exa highlight. An Exa highlight does not close a facet by itself.
 
 Empty list closes the gate, including `--deep` and including connected Exa, Brave, and Firecrawl. Re-emit the list after each paid family. Call at most one paid family (Exa, or Firecrawl, or Brave) per turn.
 
@@ -140,7 +140,7 @@ Only if remaining gaps are non-empty.
 
 1. **Free-fetch leftover URLs you already have** (TinyFish `fetch_content` or host `open_page` / `web_fetch`). Re-emit remaining gaps. Stop if empty.
 2. **Probe** from the host MCP list: write each of Exa / Brave / Firecrawl as `connected` or `disconnected`. Do not spend an Exa or Brave call as the probe. Run `firecrawl --status` only if leftover Firecrawl work is still needed after this probe. Promote a listed MCP to `unauthed` only if the first work call returns auth failure.
-3. **Exa** (if connected) on facets that still **lack URLs** — semantic / multi-hop discovery. `--balanced` ≤2 search calls; `--deep` ≤4. Search highlights are a usable body only when they already contain the facet's artifact. Re-emit remaining gaps. Stop if empty.
+3. **Exa** (if connected) on facets that still **lack URLs** — semantic / multi-hop discovery. `--balanced` ≤2 search calls; `--deep` ≤4. An Exa highlight is not a usable body. It is a lead, it does not enter the url-ledger, and it does not close a facet. Re-emit remaining gaps. Stop if empty.
 4. **Firecrawl** (if authed) leftover scrape / JS on URLs that still lack a usable body. Search only if Exa is disconnected or returned no URLs (including failure, timeout, empty). `--balanced` ≤3 leftover ops; `--deep` ≤6. Every `search`, `search --scrape`, `scrape`, and `interact` counts as one leftover op. `--status` and `search-feedback` do not. Parallel leftover scrapes of distinct not-yet-fetched URLs stay ≤2. Interact is last-resort per the ops card. Re-emit remaining gaps. Stop if empty.
 5. **Brave** (if connected) only if remaining gaps remain. `--balanced` ≤1 query; `--deep` ≤2.
 
@@ -151,6 +151,36 @@ A work-call failure (auth, timeout, rate limit, empty) is “returned no URLs”
 If Firecrawl is missing, unauthenticated, 401, 402, 429, or out of credits: one `--status` on the paid path only, then continue with Exa/Brave if connected. Do not retry-loop Firecrawl.
 
 Do not load Firecrawl workflow skills (deep-research, papers, SEO, lead-gen, crawl, map, agent, monitor).
+
+### After the gate returns
+
+The tail runs once, only after the gap list is empty or the mode forbids spend. It does not run between paid families. Spend approval is the invocation's mode flag together with a non-empty remaining-gap list. A ledger label, a mid-run yes, or a request to confirm a claim is not spend approval and is not a `gap:` line.
+
+After the gate returns, the run does not append a `gap:` line, does not treat a new URL as a leftover scrape, and does not call Exa, Firecrawl, Brave, or `parallel-cli`. An unconfirmed label, a skeptic downgrade, a missing third origin, dissent, an expired note, and a truncated excerpt do not open Exa, Firecrawl, Brave, or Parallel.
+
+Tail order, once per invocation:
+
+1. Evidence ledger and report labels (below and Step 6).
+2. Skeptic passes, then one dissent sweep. The passes do not search, spend, or install. Neither step adds a `gap:` line or calls Exa, Firecrawl, Brave, or `parallel-cli`.
+3. Vault note, after the sweep or an explicit skip. The note is not proof and not a gap.
+4. Report.
+
+A later turn is the same invocation only when the user message does not set a mode, does not set parallel-opt-in, and does not name a new topic. That turn does not rebuild `gap:` lines from a label. A message that accepts the report's offer of balanced or deep is a new invocation.
+
+### url-ledger and evidence
+
+Two tokens.
+
+- **url-ledger** — this URL has a usable body and must not be paid-scraped. A URL may be on the url-ledger and still be unconfirmed.
+- **evidence** — the confirmation label for one finding. One label per finding, written in this order: the confirmation bar, then the skeptic vote, then the dissent sweep. Freeze the label before the vault note.
+
+**Confirmed** only when full text supports the finding and either three independent origins agree or one primary does. Every other finding is **unconfirmed**.
+
+Full text is the article body from TinyFish or a host page fetch, caption text from the transcript skill, or a thread fetch of a post. A last30days snippet, a YouTube highlight, an Exa highlight, a keyword or semantic hit, and a truncated or excerpt-capped Parallel fetch are leads.
+
+A primary is the originating artifact of that claim: the organization's own post, the paper, the filing, the commit, or the docs page for that product behavior. A transcript of someone retelling it, and a wire rewrite, are not primary. One fetched primary docs page can confirm the finding. Three origins are not required when that primary full text is in hand.
+
+An origin is one publisher chain. Syndication counts once. The same author on several surfaces counts once. Three articles that syndicate one press release are one origin. Without a primary body, that finding stays unconfirmed, including on a free run, and that does not open a paid tool.
 
 ---
 
@@ -191,7 +221,7 @@ Always produce this report. Ground **only** on tool results — no invented fact
 *Mode: {free|balanced|deep} | {YYYY-MM-DD}*
 
 ## Executive Summary
-3–6 sentences. Answer the question. Grounded only on what the tools returned.
+3–6 sentences. Assert only confirmed findings. A confirmed-with-dissent finding appears only in a sentence that includes the label "confirmed with dissent attached" and the objection. When none are confirmed, say the run did not confirm an answer. Do not assert an unconfirmed claim here.
 
 ## Key Developments
 Chronological or importance-ranked bullets with source links/names.
@@ -212,7 +242,7 @@ Findings the free layer missed. Omit when remaining-gaps were none, and omit whe
 Side-by-side table or bullets. Explicit gaps / unknown areas.
 
 ## Actionable Takeaways
-Concrete next steps. Tailor to agent/tooling context when relevant
+Concrete next steps from confirmed findings only. A confirmed-with-dissent finding appears only in a sentence that includes the label "confirmed with dissent attached" and the objection. When none are confirmed, say the run did not confirm an answer. Do not assert an unconfirmed claim here. Tailor to agent/tooling context when relevant
 (Grok Build, Hermes, OpenClaw, Claude Code, evals, stack choices, etc.).
 
 ## Tools Used
@@ -240,7 +270,11 @@ If a paid MCP was disconnected or skipped-because-closed, say so. Do not claim i
 - Drill into a specific finding
 - Run `/last30days {TOPIC}` alone for a pure community pass
 - For a Firecrawl-native deliverable (deep-research report, papers, SEO audit), use that skill instead of this one
+
+your agent is only as good as the worst source it believed.
 ```
+
+Other sections may carry a finding labeled confirmed, unconfirmed, or confirmed with dissent attached. Section names and order through Follow-up Options stay as written above. The line after Follow-up Options is the last line of the report.
 
 ### Synthesis quality rules
 
@@ -264,7 +298,7 @@ If a paid MCP was disconnected or skipped-because-closed, say so. Do not claim i
 | Firecrawl missing / unauth / 401 / 402 / 429 / zero credits | One `--status` on the paid path only; skip Firecrawl; keep using Exa/Brave if connected and gaps remain |
 | Exa or Brave work-call fails | Treat as returned no URLs; skip that MCP; continue the order |
 | Paid tool rate-limited | Report partial results; do not invent fill |
-| Page is paywalled / empty | Leave off the usable-body ledger; note under Tools Used |
+| Page is paywalled / empty | Leave off the url-ledger; note under Tools Used |
 
 **Never burn Exa, Brave, or Firecrawl credits in free mode.**
 
@@ -277,9 +311,12 @@ If a paid MCP was disconnected or skipped-because-closed, say so. Do not claim i
 3. [ ] TinyFish search (3–5 angles) or host fallback if TinyFish is down
 4. [ ] Fetch top 6–10 pages (TinyFish batch or host)
 5. [ ] Emit remaining-gap list (`gap:` lines or `remaining-gaps: none`)
-6. [ ] If balanced/deep and gaps remain: free-fetch leftovers, probe, then one paid family per turn per `references/tool-routing.md`. Stop when remaining gaps empty.
-7. [ ] Synthesize in required structure
-8. [ ] Tools Used is honest: last30days one line; Exa/Brave/Firecrawl only if Step 4 ran them
+6. [ ] If balanced/deep and gaps remain: free-fetch leftovers, probe, then one paid family per turn per `references/tool-routing.md`. Stop when remaining gaps empty. Do not run the tail between paid families.
+7. [ ] After the gate returns: evidence ledger, then report labels. A label is not a `gap:` line. Do not call Exa, Firecrawl, Brave, or `parallel-cli`.
+8. [ ] Skeptic passes, then one dissent sweep, after the ledger, once. The passes do not search, spend, or install. Neither step adds a `gap:` line or calls Exa, Firecrawl, Brave, or `parallel-cli`.
+9. [ ] Vault note, after the sweep or an explicit skip. Not proof. Not a gap.
+10. [ ] Synthesize in the required structure. Executive Summary and Actionable Takeaways assert only confirmed findings. Last line is the closing line.
+11. [ ] Tools Used is honest: last30days one line; Exa/Brave/Firecrawl only if Step 4 ran them
 
 Tabletop traces for this contract: `references/eval-scenarios.md`.
 

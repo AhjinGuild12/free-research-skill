@@ -1,6 +1,6 @@
 # Free Research — Tool Routing
 
-Load this file when Step 4 may fire. SKILL.md owns the remaining-gap gate, closed-enough rule, one-family-per-turn, and numeric ceilings. This file owns the paid-path diagram, cost map, URL ledger, probe, and Firecrawl ops.
+Load this file when Step 4 may fire. SKILL.md owns the remaining-gap gate, closed-enough rule, one-family-per-turn, numeric ceilings, and the confirmation label. This file owns the paid-path diagram, cost map, url-ledger, probe, and Firecrawl ops. It does not define confirmation.
 
 ## Default path (free)
 
@@ -50,7 +50,7 @@ Skipping a connected MCP because another paid tool exists is a defect. Skipping 
 | Firecrawl CLI `search` / `scrape` / `interact` | Paid web | Paid — balanced/deep only, if authed. Counts toward leftover-ops |
 | Firecrawl `--status` / `search-feedback` | Paid web | `--status` is context, not an leftover-op. Feedback does not count |
 | Exa MCP search | Paid semantic search | Paid — balanced/deep only, **if connected**. Counts toward Exa ceiling |
-| Exa MCP fetch | Paid read | Use only when search highlights do not already answer the facet. Prefer leftover Firecrawl scrape for JS / empty pages rather than defaulting leftover reads to Exa fetch |
+| Exa MCP fetch | Paid read | An Exa highlight is not a usable body and does not close a facet. Prefer a free fetch, then leftover Firecrawl scrape for JS / empty pages, rather than defaulting leftover reads to Exa fetch |
 | Brave MCP | Paid independent index | Paid — balanced/deep only, **if connected** |
 | Host `web_search` / `open_page` | Fallback | Free-host; leftover URL fetch before any paid scrape |
 
@@ -58,7 +58,7 @@ Skipping a connected MCP because another paid tool exists is a defect. Skipping 
 
 Stay free / closed when:
 
-- `remaining-gaps: none` (asked facets have a usable primary body, or the last tool returned no new URLs)
+- `remaining-gaps: none` (asked facets have a usable body, or the last Step 4 family returned no new URLs). Origin count and the confirmation label do not close or open a facet. An unconfirmed finding is not a remaining gap.
 - User forced `--free`
 - TinyFish failed but host free-layer coverage already answers
 
@@ -66,13 +66,14 @@ Escalate when mode allows it and remaining gaps are non-empty.
 
 Ceilings (SKILL.md is source of truth): `--balanced` Exa ≤2 search calls, Firecrawl ≤3 leftover ops, Brave ≤1. `--deep` Exa ≤4, Firecrawl ≤6 leftover ops, Brave ≤2. Every Firecrawl `search`, `search --scrape`, `scrape`, and `interact` is one leftover op.
 
-## Run URL ledger
+## url-ledger
 
-Written in the same turn, not a vibe.
+Written in the same turn, not a vibe. SKILL.md defines this token. A URL on the url-ledger has a usable body and must not be paid-scraped. The url-ledger is not the confirmation label. A URL may be on the url-ledger and still be unconfirmed.
 
-- Record every URL that already has a **usable body** (TinyFish, host fetch, Exa clean text that answers the facet, Firecrawl `search --scrape` or scrape).
+- Record every URL that already has a **usable body** (TinyFish, host fetch, a full page body that answers the facet, Firecrawl `search --scrape` or scrape).
+- An Exa highlight is not a usable body and does not enter the url-ledger.
 - last30days snippet ≠ usable body. Title-only or nav-only markdown ≠ usable body.
-- Do not paid-scrape a URL already on the ledger with a usable body.
+- Do not paid-scrape a URL already on the url-ledger.
 - Do not skip a needed scrape because last30days only cited the URL.
 
 ## Probe
@@ -112,7 +113,7 @@ firecrawl search "query" -o .firecrawl/search-{slug}.json --json
 firecrawl search "query" --scrape -o .firecrawl/search-{slug}-scraped.json --json
 ```
 
-Search costs 2 credits per 10 results (limit 5 → 2). `search --scrape` adds scrape cost per result and counts as **one** leftover-op invocation; put those bodies on the URL ledger. Do not TinyFish-refetch or re-scrape URLs that already have usable content.
+Search costs 2 credits per 10 results (limit 5 → 2). `search --scrape` adds scrape cost per result and counts as **one** leftover-op invocation; put those bodies on the url-ledger. Do not TinyFish-refetch or re-scrape URLs that already have usable content.
 
 Inspect with `jq`, `head`, or `grep`. Do not dump full JSON into context.
 
@@ -180,7 +181,7 @@ Default: `./.firecrawl/` in CWD. Mention the path under Tools Used. Do not commi
 - Firing Exa, Firecrawl, and Brave in one batch without a remaining-gap re-gate
 - Claiming Firecrawl, TinyFish, Exa, Brave, or last30days ran when a substitute did
 - Unrolling last30days STEP 0 as Exa / Brave / Firecrawl used by free-research
-- Fetching or re-scraping URLs already on the ledger with a usable body
+- Fetching or re-scraping URLs already on the url-ledger
 - Counting a last30days snippet as a usable body
 - `scrape --query`
 - Nesting `firecrawl-*` skills or loading Firecrawl workflow skills
