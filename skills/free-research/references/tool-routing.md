@@ -35,7 +35,9 @@ free layer complete
   → synthesize (+ Deep Insights)
 ```
 
-After each paid family, stop if remaining gaps are empty. Call at most one paid family per turn. Parallelism is only Firecrawl leftover scrapes of distinct not-yet-fetched URLs, ≤2.
+After each paid family, stop if remaining gaps are empty. Call at most one paid family per turn. Concurrency is only Firecrawl leftover scrapes of distinct not-yet-fetched URLs, ≤2.
+
+`parallel-cli` is the paid family after Brave, and only when SKILL.md's opt-in predicates all hold. It is not the default engine. Do not install it. Ceilings below are counted across the whole invocation, including a later turn. Balanced mode: at most one `research run` and two extracts. Deep mode doubles those caps. A `research run` is one family call. Its prose is a lead, not a usable body, not Deep Insights, and not a new gap. Extracts fetch only URLs already in hand that still lack a usable body, and only while the original gap list is still non-empty and the ceiling remains. An extract is a url-ledger body only when it is run to return the full article body. Default excerpt output stays a lead and does not close a facet. An extract does not set the confirmation label. `parallel-cli` uses ambient auth only. Never read, print, or write an API key or a credential file.
 
 Skipping a connected MCP because another paid tool exists is a defect. Skipping it because remaining gaps closed is required.
 

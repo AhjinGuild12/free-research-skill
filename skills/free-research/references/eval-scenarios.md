@@ -158,6 +158,21 @@ Covers R4 including `--deep`.
 - **Same invocation:** A later turn does not read the note as a new run.
 - **Secrets:** The note, the report, Tools Used, and the skill files do not contain API keys, environment values, or credential-file contents.
 
+## T12. Missing parallel-cli
+
+- **Error:** `parallel-cli` is not on PATH, or the only `parallel` on PATH is GNU parallel. Any mode, including a topic that contains the word Parallel. Do not install a package. Do not invoke GNU `parallel`. Do not call the Parallel Task API. Tools Used has a skip line and does not list `parallel-cli` as used.
+- **Integration:** Free mode. The topic string contains "Parallel". There is no `--parallel` flag and no unquoted instruction to use Parallel. `parallel-opt-in` stays false. The CLI does not run. `--deep` alone, including when research-to-x-article passed `--deep`, does not set the opt-in.
+- **last30days:** do not add `--web-backend parallel-mcp` unless the user asked for that backend.
+- **Default:** with no flag and no explicit instruction, the CLI stays off. This trace does not call it.
+
+## T16. Search MCP and the opt-in lane
+
+- **Disconnected:** Parallel Search MCP is not connected. Do not connect it. Do not call it. Do not install. Free mode still runs TinyFish.
+- **Happy:** Parallel Search MCP is already connected. Free mode. One extra angle. TinyFish still runs. A fetched complete body still faces the confirmation bar. An excerpt-capped result is a lead, not a url-ledger body, and it does not close or open a gap. This lane is not spend and does not need `--parallel`.
+- **Edge:** The user passes `--parallel` on balanced mode. A named gap is still open after Brave. `parallel-cli` is on PATH. At most one `research run` and two extracts for the whole invocation, including a later turn. Deep mode doubles those caps. An open gap without the opt-in does not fire the CLI. The opt-in without an open gap does not fire it.
+- **Extract:** A `research run`'s prose is a lead, not a usable body, not Deep Insights, and not a new gap. An extract enters the url-ledger only when it returns the full article body. Default excerpt output does not close a facet and does not set the confirmation label.
+- **Off by default:** no flag and no explicit instruction means `parallel-opt-in` is false. Do not call the CLI in that case.
+
 ---
 
 ## Live smokes (U4 runs these; this file is the pass bar)
