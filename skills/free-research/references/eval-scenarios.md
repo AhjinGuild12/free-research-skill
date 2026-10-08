@@ -102,7 +102,8 @@ Covers R4 including `--deep`.
 - **Happy:** Free mode. TinyFish fetched the organization's own docs page for the claim. No second origin is in hand. The facet closes because that page is a usable body. The evidence label may be confirmed. The Executive Summary may state that finding. No Exa, Firecrawl, Brave, or `parallel-cli`.
 - **Edge:** Free mode. Three articles syndicate one press release. No primary body is in hand. That is one origin. The finding stays unconfirmed. Do not write `gap:` because it is unconfirmed or short of three origins. No Exa, Firecrawl, Brave, or Parallel call.
 - **Error:** An Exa highlight arrives with no page body. The highlight is a lead. It does not enter the url-ledger, does not close the facet, and does not confirm the finding.
-- **Second turn, free:** The gap list is already empty and the finding is unconfirmed. The next message does not set a mode, does not opt into Parallel, and does not name a new topic. Re-read Step 4. Do not append `gap:`. Do not call Exa, Firecrawl, Brave, or Parallel.
+- **Rule home:** the confirmation bar and origin rules are in `references/verification-tail.md`, loaded after the gate returns. The gap list stays in Step 4.
+- **Second turn, free:** The gap list is already empty and the finding is unconfirmed. The next message does not set a mode, does not opt into Parallel, and does not name a new topic. Re-read Step 4 and the safety floor. Do not append `gap:`. Do not call Exa, Firecrawl, Brave, or Parallel.
 - **Second turn, balanced:** Same empty gap list and the same unconfirmed label. The original invocation was balanced. Re-read Step 4. Still no Exa, Firecrawl, Brave, or Parallel call.
 - **Tools Used:** last30days stays one line. Paid tools appear only if Step 4 actually ran them before the gate returned.
 
@@ -126,12 +127,13 @@ Covers R4 including `--deep`.
 ## T14. Keyword hit is not a body
 
 - **Integration:** An X keyword hit or semantic hit without a thread fetch is a lead, not full text. It does not confirm a finding and does not enter the url-ledger.
-- **Edge:** A general intent does not run live X before the gate. Person or news may fetch at most three threads before the gate. A third thread is not fetched in that pass.
+- **Edge:** A general intent does not run live X before the gate. Person or news may fetch at most three threads before the gate. A fourth thread is not fetched.
 - **Forbidden:** Treating the keyword hit as caption text or as a page body. Sending a YouTube watch page to Firecrawl to recover captions. Pip-installing the transcript package.
 - **Tools Used:** a thread fetch is its own line when it ran. A keyword hit is not listed as a thread fetch. last30days stays one line.
 
 ## T10. Vote flip
 
+- **Rule home:** `references/verification-tail.md`, loaded after the gate returns.
 - **Happy:** One primary full text is in hand. Correctness, recency, and source quality all pass. The finding stays confirmed. The Executive Summary may state it.
 - **Edge:** The recency pass has no date, so that pass fails. A second pass also fails. The majority failure flips the label to unconfirmed. The sentence stays in the report, outside the Executive Summary and Actionable Takeaways. An abstention counts as a failure. A missing critique is not a pass and is not an abstention. The finding stays unconfirmed until all three critiques are recorded.
 - **Error:** A pass that searches or calls Exa is out of contract. Deep-research is not invoked. The passes do not raise an unconfirmed finding to confirmed.
@@ -139,6 +141,7 @@ Covers R4 including `--deep`.
 
 ## T11. One sweep
 
+- **Rule home:** `references/verification-tail.md`, loaded after the gate returns.
 - **Happy:** One finding is still confirmed after the vote. The sweep's only hit is a thinner objection, with no contradicting primary body in hand. The label is confirmed with dissent attached. The objection is on the ledger. The sentence stays.
 - **Flip:** The sweep fetches a contradicting primary and that full text is in hand. That finding becomes unconfirmed. A search hit alone does not flip it.
 - **Skip:** Nothing is still confirmed. Write an explicit skip. Do not search.
@@ -172,6 +175,42 @@ Covers R4 including `--deep`.
 - **Edge:** The user passes `--parallel` on balanced mode. A named gap is still open after Brave. `parallel-cli` is on PATH. At most one `research run` and two extracts for the whole invocation, including a later turn. Deep mode doubles those caps. An open gap without the opt-in does not fire the CLI. The opt-in without an open gap does not fire it.
 - **Extract:** A `research run`'s prose is a lead, not a usable body, not Deep Insights, and not a new gap. An extract enters the url-ledger only when it returns the full article body. Default excerpt output does not close a facet and does not set the confirmation label.
 - **Off by default:** no flag and no explicit instruction means `parallel-opt-in` is false. Do not call the CLI in that case.
+
+---
+
+## T18a. tool-routing.md fails to load
+
+- **Input:** `/free-research widgets --balanced`. A named gap is still open. `references/tool-routing.md` fails to load.
+- **Allowed:** last30days; TinyFish or host free web tools.
+- **Forbidden:** Exa; Firecrawl, including `firecrawl --status`; Brave; `parallel-cli`; the Parallel Task API; any other paid call. No paid family runs.
+- **Gate:** the gate returns.
+- **Note:** no note is written.
+- **Tools Used:** free-layer tools only. No paid tool listed as used.
+- **Report:** still returns, with the closing line.
+
+## T18b. verification-tail.md fails to load
+
+- **Input:** `/free-research widgets --deep`. One Exa call ran while a gap was open. The gate has since returned. `references/verification-tail.md` then fails to load.
+- **Allowed:** that one Exa call, which ran before the gate returned.
+- **Forbidden:** any further Exa, Firecrawl, Brave, or `parallel-cli` call. No second Exa call. No note write. No sweep that spends.
+- **Findings:** a finding whose review did not finish stays unconfirmed. Executive Summary and Actionable Takeaways do not assert it.
+- **Tools Used:** Exa appears once. Calls made before the gate returned still count.
+- **Report:** ships, with the closing line.
+
+## T22. Paid order exhausted, facet unresolved
+
+- **Input:** `/free-research widgets --balanced`. One named gap is open. Exa is connected and returns no URLs. Firecrawl is unauthenticated. Brave is disconnected. There is no `--parallel` opt-in.
+- **Order:** Exa runs one search call and returns no URLs. It does not run again. Firecrawl then runs one `--status` and stops. No scrape, no search, no second `--status`. Brave is skipped with no query. `parallel-cli` does not run.
+- **Forbidden:** repeating any of those calls; running a family out of that order; a call past a Modes table ceiling.
+- **Gate:** the gate returns. The facet is not marked closed.
+- **Report:** the facet is unresolved under Comparison / Gaps.
+
+## T23. Balanced ceilings, then the gate returns
+
+- **Input:** `/free-research widgets --balanced`. A named gap is still open after Exa hits its ceiling. Firecrawl is authed. Brave is connected. There is no `--parallel` opt-in. The gap is still open after Firecrawl.
+- **Order:** `--balanced` Exa ≤2 search calls, and no third. Then Firecrawl, one leftover scrape, inside `--balanced` Firecrawl ≤3 leftover ops. Then `--balanced` Brave ≤1 query, and no second. Then the gate returns. `parallel-cli` does not run.
+- **Forbidden:** a family running twice, or past its ceiling; Exa after Firecrawl has started; Brave before Firecrawl; any call after the gate returns.
+- **Gate:** the gate returns because no paid family remains eligible. The facet stays unresolved under Comparison / Gaps. It is not marked closed.
 
 ---
 

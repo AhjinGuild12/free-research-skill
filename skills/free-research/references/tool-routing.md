@@ -1,6 +1,6 @@
 # Free Research — Tool Routing
 
-Load this file when Step 4 may fire. SKILL.md owns the remaining-gap gate, closed-enough rule, one-family-per-turn, numeric ceilings, and the confirmation label. This file owns the paid-path diagram, cost map, url-ledger, probe, and Firecrawl ops. It does not define confirmation.
+Load this file when Step 4 may fire. SKILL.md owns the remaining-gap gate, the closed-enough rule, one-family-per-turn, and the Exa, Firecrawl, and Brave ceilings in its Modes table. This file owns the paid-path diagram, the cost map, the url-ledger procedure, the probe, Firecrawl ops, and the `parallel-cli` caps. It does not define the confirmation label.
 
 ## Default path (free)
 
@@ -13,7 +13,7 @@ TOPIC
   → synthesize
 ```
 
-TinyFish-down is not an escalate signal. `--free` never calls Exa, Brave, or Firecrawl, including `firecrawl --status`. Nested last30days host-search stays last30days-owned; do not unroll it as free-research Exa/Brave/Firecrawl.
+Whether TinyFish being down escalates is SKILL.md Step 3. `--free` spends nothing. SKILL.md's Step 4 gate owns the paid ban. Nested last30days host-search stays last30days-owned; do not unroll it as free-research Exa/Brave/Firecrawl.
 
 ## Escalation path (balanced / deep only)
 
@@ -32,14 +32,16 @@ free layer complete
   → Firecrawl leftover scrape / JS (search only if Exa missing or returned no URLs)
   → re-emit remaining gaps; empty? synthesize
   → Brave (if connected and remaining gaps remain)
-  → synthesize (+ Deep Insights)
+  → re-emit remaining gaps; empty? synthesize
+  → parallel-cli (only when SKILL.md's opt-in predicates all hold and a named gap is still open; this file owns the caps)
+  → re-emit remaining gaps; empty, or no paid family left eligible? synthesize (+ Deep Insights). Facets still open stay unresolved, not closed
 ```
 
-After each paid family, stop if remaining gaps are empty. Call at most one paid family per turn. Concurrency is only Firecrawl leftover scrapes of distinct not-yet-fetched URLs, ≤2.
+After each paid family, stop if remaining gaps are empty. SKILL.md's gate owns one-family-per-turn. Concurrency is only Firecrawl leftover scrapes of distinct not-yet-fetched URLs, ≤2.
 
-`parallel-cli` is the paid family after Brave, and only when SKILL.md's opt-in predicates all hold. It is not the default engine. Do not install it. Ceilings below are counted across the whole invocation, including a later turn. Balanced mode: at most one `research run` and two extracts. Deep mode doubles those caps. A `research run` is one family call. Its prose is a lead, not a usable body, not Deep Insights, and not a new gap. Extracts fetch only URLs already in hand that still lack a usable body, and only while the original gap list is still non-empty and the ceiling remains. An extract is a url-ledger body only when it is run to return the full article body. Default excerpt output stays a lead and does not close a facet. An extract does not set the confirmation label. `parallel-cli` uses ambient auth only. Never read, print, or write an API key or a credential file.
+`parallel-cli` is the paid family after Brave, and only when SKILL.md's opt-in predicates all hold. It is not the default engine. Do not install it. This file owns the caps below. They are counted across the whole invocation, including a later turn. Balanced mode: at most one `research run` and two extracts. Deep mode doubles those caps. A `research run` is one family call. Its prose is a lead, not a usable body, not Deep Insights, and not a new gap. Extracts fetch only URLs already in hand that still lack a usable body, and only while the original gap list is still non-empty and the ceiling remains. An extract is a url-ledger body only when it is run to return the full article body. Default excerpt output stays a lead and does not close a facet. An extract does not set the confirmation label. `parallel-cli` uses ambient auth only. Never read, print, or write an API key or a credential file.
 
-Skipping a connected MCP because another paid tool exists is a defect. Skipping it because remaining gaps closed is required.
+SKILL.md's paid path owns the connected-MCP defect rule, including both exceptions: it does not apply to Parallel Search MCP or `parallel-cli`.
 
 ## Cost map
 
@@ -66,7 +68,7 @@ Stay free / closed when:
 
 Escalate when mode allows it and remaining gaps are non-empty.
 
-Ceilings (SKILL.md is source of truth): `--balanced` Exa ≤2 search calls, Firecrawl ≤3 leftover ops, Brave ≤1. `--deep` Exa ≤4, Firecrawl ≤6 leftover ops, Brave ≤2. Every Firecrawl `search`, `search --scrape`, `scrape`, and `interact` is one leftover op.
+Ceilings for Exa, Firecrawl, and Brave (SKILL.md Modes table is source of truth): `--balanced` Exa ≤2 search calls, Firecrawl ≤3 leftover ops, Brave ≤1. `--deep` Exa ≤4, Firecrawl ≤6 leftover ops, Brave ≤2. Every Firecrawl `search`, `search --scrape`, `scrape`, and `interact` is one leftover op. `parallel-cli` caps are owned above, not by that table.
 
 ## url-ledger
 
@@ -86,7 +88,7 @@ On `--balanced` / `--deep` after remaining gaps are still non-empty:
 2. `firecrawl --status` only if Firecrawl leftover work is still needed. Announce remaining credits before the first Firecrawl spend.
 3. First work-call auth failure promotes that tool to `unauthed`. Treat as returned no URLs; continue the order.
 
-`--free` never probes Firecrawl.
+Do not probe on `--free`. SKILL.md's Step 4 gate owns that ban.
 
 ## Firecrawl ops card
 
@@ -176,8 +178,8 @@ Default: `./.firecrawl/` in CWD. Mention the path under Tools Used. Do not commi
 
 ## Anti-patterns
 
-- Calling Firecrawl, Exa, or Brave on a `--free` run, including `--status`
-- Treating TinyFish-down as an escalate signal
+- A paid call on a `--free` run. SKILL.md's Step 4 gate owns the ban, including `--status`
+- Treating TinyFish-down as an escalate signal (owned by SKILL.md Step 3)
 - Skipping a connected Exa or Brave MCP because Firecrawl exists
 - Running Exa search and Firecrawl search on the same gap in the same turn
 - Firing Exa, Firecrawl, and Brave in one batch without a remaining-gap re-gate

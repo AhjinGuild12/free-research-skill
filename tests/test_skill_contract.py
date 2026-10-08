@@ -13,6 +13,7 @@ SKILL_DIR = ROOT / "skills" / "free-research"
 SKILL_MD = SKILL_DIR / "SKILL.md"
 TOOL_ROUTING = SKILL_DIR / "references" / "tool-routing.md"
 EVAL_SCENARIOS = SKILL_DIR / "references" / "eval-scenarios.md"
+VERIFICATION_TAIL = SKILL_DIR / "references" / "verification-tail.md"
 
 TOOLS = ("Exa", "Firecrawl", "Brave")
 MODES = ("free", "balanced", "deep")
@@ -28,7 +29,20 @@ REPORT_SECTIONS = (
     "Follow-up Options",
 )
 CLOSING_LINE = "your agent is only as good as the worst source it believed."
-TRACE_IDS = tuple(f"T{number}" for number in range(1, 18)) + ("L1", "L2")
+TRACE_IDS = (
+    tuple(f"T{number}" for number in range(1, 18))
+    + ("T18a", "T18b", "T22", "T23", "L1", "L2")
+)
+SAFETY_FLOOR_STATEMENTS = (
+    "The gate is marked returned before the tail loads.",
+    "An unreviewed finding is unconfirmed.",
+    "Executive Summary and Actionable Takeaways assert only confirmed findings.",
+    "After the gate, no Exa, Firecrawl, Brave, or `parallel-cli`.",
+    "A failed reference load means the report ships and no note is written.",
+    "If `references/tool-routing.md` fails to load, no paid call is made, and the gate returns.",
+    "If `references/verification-tail.md` fails to load, no further paid call is made, and no note is written.",
+    "Calls made before the gate returned still count, and are listed under Tools Used.",
+)
 PARALLEL_RUNS_BALANCED = 1
 PARALLEL_EXTRACTS_BALANCED = 2
 COPY_CHECK_ENV = "FREE_RESEARCH_CHECK_COPIES"
@@ -40,7 +54,7 @@ _BARE_CEILING_RE = re.compile(r"≤\s*(\d+)")
 _MODE_FLAG_RE = re.compile(r"--(free|balanced|deep)\b")
 _ROW_MODE_RE = re.compile(r"\*\*(free|balanced|deep)\*\*", re.IGNORECASE)
 _BLOCK_TOOL_RE = re.compile(r"^\d+\.\s+\*\*(Exa|Firecrawl|Brave)\*\*")
-_TRACE_HEADING_RE = re.compile(r"^#{2,3} ((?:T\d+|L\d+))\.", re.MULTILINE)
+_TRACE_HEADING_RE = re.compile(r"^#{2,3} ((?:T\d+[a-z]?|L\d+))\.", re.MULTILINE)
 _REFERENCE_RE = re.compile(r"references/[A-Za-z0-9_.-]+\.md")
 _PARALLEL_CAP_RE = re.compile(
     r"at most (one|two|three|four|\d+) `research run` and (one|two|three|four|\d+) extracts",
@@ -248,6 +262,13 @@ class TestSkillContract(unittest.TestCase):
         self.assertTrue(named, "SKILL.md names no references/ files")
         missing = [ref for ref in named if not (SKILL_DIR / ref).is_file()]
         self.assertEqual([], missing, f"missing referenced files: {missing}")
+
+    def test_verification_tail_exists_and_safety_floor(self) -> None:
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        self.assertTrue(VERIFICATION_TAIL.is_file(), "references/verification-tail.md is missing")
+        self.assertIn("references/verification-tail.md", skill)
+        missing = [statement for statement in SAFETY_FLOOR_STATEMENTS if statement not in skill]
+        self.assertEqual([], missing, "safety floor missing from SKILL.md:\n" + "\n".join(missing))
 
     def test_trace_ids_appear_once(self) -> None:
         counts: dict[str, int] = {trace_id: 0 for trace_id in TRACE_IDS}
