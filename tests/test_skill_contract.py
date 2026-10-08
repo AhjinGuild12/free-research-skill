@@ -14,6 +14,7 @@ SKILL_MD = SKILL_DIR / "SKILL.md"
 TOOL_ROUTING = SKILL_DIR / "references" / "tool-routing.md"
 EVAL_SCENARIOS = SKILL_DIR / "references" / "eval-scenarios.md"
 VERIFICATION_TAIL = SKILL_DIR / "references" / "verification-tail.md"
+VAULT_NOTES = SKILL_DIR / "references" / "vault-notes.md"
 
 TOOLS = ("Exa", "Firecrawl", "Brave")
 MODES = ("free", "balanced", "deep")
@@ -31,7 +32,69 @@ REPORT_SECTIONS = (
 CLOSING_LINE = "your agent is only as good as the worst source it believed."
 TRACE_IDS = (
     tuple(f"T{number}" for number in range(1, 18))
-    + ("T18a", "T18b", "T22", "T23", "L1", "L2")
+    + ("T18a", "T18b", "T19", "T20", "T21", "T22", "T23", "L1", "L2")
+)
+KEY_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+){1,3}$")
+KEY_MAX_BYTES = 48
+FILENAME_MAX_BYTES = 67
+VAULT_LOAD_READ = (
+    "On a new invocation, load `references/vault-notes.md` before the free-web search and follow it for the read."
+)
+VAULT_LOAD_WRITE = (
+    "After the verification tail reaches its write step, load `references/vault-notes.md` again and follow it for the write."
+)
+ENV_READ_RULE = (
+    "Read `FREE_RESEARCH_NOTES_DIR` by name only. "
+    "It is the only environment variable this skill reads."
+)
+VAULT_TOOLS_USED = (
+    "The vault-note line is one line. It says whether a note was read, written, or skipped, and why. "
+    "It does not include `FREE_RESEARCH_NOTES_DIR` or a filesystem path."
+)
+NORMALIZED_TOPIC_RULE = (
+    "The normalized topic is the topic lowercased, with leading and trailing whitespace trimmed "
+    "and each internal whitespace run collapsed to a single space."
+)
+VAULT_NOTE_PHRASES = (
+    "FREE_RESEARCH_NOTES_DIR",
+    "[shell_environment_policy.set]",
+    "26-config-reference.md",
+    r"^[a-z0-9]+(?:-[a-z0-9]+){1,3}$",
+    "microsoft-ms-102",
+    "Each hyphenated word may contain digits.",
+    "48 bytes",
+    "67 bytes",
+    "schema: 2",
+    "marker: run-note",
+    "sha256",
+    "UTF-8",
+    "first 8 hex",
+    NORMALIZED_TOPIC_RULE,
+    "legacy exact-slug",
+    "lowercase, digits and hyphens kept, other characters collapsed to a single hyphen",
+    "<key>--<hash>-2.md",
+    "at most three version-2 notes",
+    "not proof, not a gap",
+    "use --deep",
+    "set the vault path",
+    "7 days for a news intent, 90 days when the confirming body is a stable official doc, otherwise 30 days",
+)
+VAULT_TRACE_PHRASES = (
+    "ezzybills-xero-integration--1a2b3c4d.md",
+    "can we build the EzzyBills to Xero sync ourselves",
+    "not proof, not a gap",
+    "300-character topic",
+    "at most 67 bytes",
+    "first 250 characters",
+    "<key>--<hash>-2.md",
+    "legacy exact-slug",
+    "latest `expires`",
+    "FREE_RESEARCH_NOTES_DIR",
+    "relative path",
+    "symlink",
+    "use --deep",
+    "set the vault path",
+    "two sibling files",
 )
 SAFETY_FLOOR_STATEMENTS = (
     "The gate is marked returned before the tail loads.",
@@ -182,6 +245,16 @@ def _parse_count(token: str) -> int:
     return _NUMBER_WORDS[lowered]
 
 
+def _normalize_topic(topic: str) -> str:
+    return re.sub(r"\s+", " ", topic.strip().lower())
+
+
+def _topic_filename(key: str, topic: str, suffix: str = "") -> str:
+    digest = hashlib.sha256(_normalize_topic(topic).encode("utf-8")).hexdigest()[:8]
+    extra = f"-{suffix}" if suffix else ""
+    return f"{key}--{digest}{extra}.md"
+
+
 def _file_inventory(root: Path) -> dict[str, str]:
     if not root.is_dir():
         raise AssertionError(f"missing copy: {root}")
@@ -269,6 +342,56 @@ class TestSkillContract(unittest.TestCase):
         self.assertIn("references/verification-tail.md", skill)
         missing = [statement for statement in SAFETY_FLOOR_STATEMENTS if statement not in skill]
         self.assertEqual([], missing, "safety floor missing from SKILL.md:\n" + "\n".join(missing))
+
+    def test_vault_notes_contract(self) -> None:
+        self.assertTrue(VAULT_NOTES.is_file(), "references/vault-notes.md is missing")
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        notes = VAULT_NOTES.read_text(encoding="utf-8")
+        scenarios = EVAL_SCENARIOS.read_text(encoding="utf-8")
+        self.assertIn("references/vault-notes.md", skill)
+        self.assertIn(VAULT_LOAD_READ, skill)
+        self.assertIn(VAULT_LOAD_WRITE, skill)
+        self.assertIn(ENV_READ_RULE, skill)
+        self.assertIn(VAULT_TOOLS_USED, skill)
+        for text, label in ((skill, "SKILL.md"), (notes, "vault-notes.md"), (scenarios, "eval-scenarios.md")):
+            self.assertNotIn("Jan Obsidian", text, label)
+            self.assertNotIn("1. Projects/Improved Search free-research", text, label)
+        missing_notes = [phrase for phrase in VAULT_NOTE_PHRASES if phrase not in notes]
+        self.assertEqual([], missing_notes, "vault-notes.md missing:\n" + "\n".join(missing_notes))
+        missing_scenarios = [phrase for phrase in VAULT_TRACE_PHRASES if phrase not in scenarios]
+        self.assertEqual([], missing_scenarios, "eval-scenarios.md missing:\n" + "\n".join(missing_scenarios))
+        self.assertNotIn("letters only", notes.lower())
+        self.assertNotIn("sibling slug is neither read", skill)
+        self.assertIn(r"^[a-z0-9]+(?:-[a-z0-9]+){1,3}$", notes)
+
+    def test_key_grammar_allows_digits_and_bounds_filenames(self) -> None:
+        self.assertIsNotNone(KEY_RE.fullmatch("microsoft-ms-102"))
+        self.assertIsNotNone(KEY_RE.fullmatch("ezzybills-xero-integration"))
+        self.assertIsNone(KEY_RE.fullmatch("xero"))
+        self.assertIsNone(KEY_RE.fullmatch("a-b-c-d-e"))
+        self.assertLessEqual(len("microsoft-ms-102".encode("utf-8")), KEY_MAX_BYTES)
+        long_key = "abcdefghijkl-abcdefghijk-abcdefghijk-abcdefghijk"
+        self.assertEqual(KEY_MAX_BYTES, len(long_key.encode("utf-8")))
+        self.assertIsNotNone(KEY_RE.fullmatch(long_key))
+        collided = f"{long_key}--01234567-2.md"
+        self.assertLessEqual(len(collided.encode("utf-8")), FILENAME_MAX_BYTES)
+        first_topic = "w" * 300
+        second_topic = ("w" * 250) + ("x" * 50)
+        self.assertEqual(300, len(first_topic))
+        self.assertTrue(second_topic.startswith(first_topic[:250]))
+        self.assertNotEqual(first_topic, second_topic)
+        key = "ezzybills-xero-integration"
+        first_name = _topic_filename(key, f"  {first_topic}  ")
+        second_name = _topic_filename(key, second_topic)
+        self.assertLessEqual(len(first_name.encode("utf-8")), FILENAME_MAX_BYTES)
+        self.assertNotEqual(first_name, second_name)
+        self.assertEqual(
+            _topic_filename(key, "  EzzyBills   Xero\n"),
+            _topic_filename(key, "ezzybills xero"),
+        )
+        notes = VAULT_NOTES.read_text(encoding="utf-8")
+        self.assertIn(NORMALIZED_TOPIC_RULE, notes)
+        self.assertIn("microsoft-ms-102", notes)
 
     def test_trace_ids_appear_once(self) -> None:
         counts: dict[str, int] = {trace_id: 0 for trace_id in TRACE_IDS}
