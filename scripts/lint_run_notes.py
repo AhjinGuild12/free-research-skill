@@ -27,6 +27,9 @@ FINDING_RE = re.compile(
 )
 # Scheme-prefixed URLs do not require "//". http and https stay; every other scheme is an error.
 URL_RE = re.compile(r"^(?:-\s+)?([A-Za-z][A-Za-z0-9+.-]*:\S+)$")
+MARKDOWN_URL_RE = re.compile(r"\[[^\]\n]*\]\(<?([A-Za-z][A-Za-z0-9+.-]*:[^\s)>]+)>?(?:\s+[^)]+)?\)")
+# Opaque bullet destinations need a known scheme to distinguish them from labels.
+URL_SCHEMES = frozenset({"http", "https", "ftp", "ftps", "data", "file", "mailto", "javascript", "tel", "urn"})
 OBJECTION_RE = re.compile(r"^(.*?)\s*— objection:\s?(.*)$")
 LABEL_PREFIX_RE = re.compile(r"^([^:]+):\s*\S")
 BARE_LABEL_RE = re.compile(
@@ -112,7 +115,8 @@ def lint_folder(folder: Path, today: date | None = None) -> list[FileResult]:
 
 def lint_text(filename: str, text: str, today: date) -> FileResult:
     fields, body = parse_frontmatter(text)
-    if fields is None and unclosed_v2_frontmatter(text):
+    kind = classify(fields)
+    if kind == "v2" and body is None:
         return FileResult(
             filename,
             "v2",
@@ -125,7 +129,6 @@ def lint_text(filename: str, text: str, today: date) -> FileResult:
                 )
             ],
         )
-    kind = classify(fields)
     if kind == "skipped":
         return FileResult(filename, "skipped", "n/a", [Issue("skip", "skipped", "not a run note")])
     if fields is None:
@@ -138,6 +141,8 @@ def lint_text(filename: str, text: str, today: date) -> FileResult:
             expiry_status(fields, today),
             [Issue("error", "unsupported-schema", f"schema {schema} is not supported")],
         )
+    if body is None:
+        return FileResult(filename, "skipped", "n/a", [Issue("skip", "skipped", "not a run note")])
     if kind == "legacy":
         return lint_legacy(filename, fields, body, today)
     return lint_v2(filename, fields, body, today)
@@ -154,24 +159,8 @@ def classify(fields: dict[str, str] | None) -> str:
     return "legacy"
 
 
-def unclosed_v2_frontmatter(text: str) -> bool:
-    """A schema-2 note whose opening delimiter never closes is still a note."""
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return False
-    saw_schema_2 = False
-    for line in lines[1:]:
-        if line.strip() == "---":
-            return False
-        if not line.strip() or ":" not in line:
-            continue
-        name, value = line.split(":", 1)
-        if name.strip() == "schema" and unquote(value.strip()) == SCHEMA_V2:
-            saw_schema_2 = True
-    return saw_schema_2
-
-
-def parse_frontmatter(text: str) -> tuple[dict[str, str] | None, str]:
+def parse_frontmatter(text: str) -> tuple[dict[str, str] | None, str | None]:
+    """Preserve fields for schema classification; None body means an unclosed block."""
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
         return None, text
@@ -183,7 +172,7 @@ def parse_frontmatter(text: str) -> tuple[dict[str, str] | None, str]:
             continue
         name, value = line.split(":", 1)
         fields[name.strip()] = unquote(value.strip())
-    return None, text
+    return fields, None
 
 
 def lint_v2(filename: str, fields: dict[str, str], body: str, today: date) -> FileResult:
@@ -253,11 +242,15 @@ def body_issues(body: str) -> list[Issue]:
     for line in content_lines:
         if line == CLOSING_LINE:
             continue
+        for markdown_url in MARKDOWN_URL_RE.finditer(line):
+            issues.extend(url_issues(markdown_url.group(1)))
         url_match = URL_RE.fullmatch(line)
-        # A canonical finding can be one token after the colon. It is not a scheme URL.
         if url_match and FINDING_RE.fullmatch(line) is None:
-            issues.extend(url_issues(url_match.group(1)))
-            continue
+            url = url_match.group(1)
+            scheme = url.split(":", 1)[0].lower()
+            if not line.startswith("-") or scheme in URL_SCHEMES or "://" in url:
+                issues.extend(url_issues(url))
+                continue
         if line.startswith("-"):
             issues.extend(finding_issues(line))
     return issues
