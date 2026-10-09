@@ -1,6 +1,6 @@
 ---
 name: free-research
-version: "1.0.0"
+version: "1.1.0"
 description: >
   Smart free-first multi-source research. Combines last30days (community pulse) + TinyFish
   (free search/fetch) with paid escalation on remaining gaps through connected web MCPs

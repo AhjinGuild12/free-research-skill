@@ -44,7 +44,7 @@ A full free run needs both companions. This plugin does not include them.
 
 If last30days or TinyFish is missing, the skill still loads. It labels the gap under **Tools Used** and continues with whatever free host tools are available. It does not pretend those tools ran.
 
-**Brave Search** and **Exa** are optional paid layers for `--balanced` / `--deep` only. They are not required and are never called in free mode.
+**Exa**, **Firecrawl**, and **Brave Search** are optional paid layers for `--balanced` / `--deep` only. They are not required and are never called in free mode.
 
 ## Examples
 
@@ -63,6 +63,7 @@ Tools Used looks like:
 - TinyFish search × 4 — discovery angles (free)
 - TinyFish fetch_content — 8 pages (free)
 - Exa — not used
+- Firecrawl — not used
 - Brave — not used
 ```
 
@@ -72,7 +73,7 @@ Tools Used looks like:
 /free-research --deep Cloudflare Agents Week
 ```
 
-Same free layer first. If coverage still has holes, selective Exa, then Brave Search as an independent index. New URLs still get fetched with TinyFish (free).
+Same free layer first. If remaining gaps are still open, paid tools run in this order: Exa, then Firecrawl, then Brave. Deep ceilings are Exa ≤4, Firecrawl ≤6 leftover ops, and Brave ≤2. The run stops when remaining gaps are empty. New URLs from Exa or Brave are still fetched with TinyFish when that fetch is free. Firecrawl reads leftover pages the free fetch could not.
 
 Tools Used after a real escalate:
 
@@ -80,11 +81,12 @@ Tools Used after a real escalate:
 - last30days — community pulse (free)
 - TinyFish search × 5 — discovery angles (free)
 - TinyFish fetch_content — 10 pages (free)
-- Exa — 2 gap queries on launch timeline (deep)
-- Brave — independent index after Exa still missed X coverage
+- Exa — gap queries on the launch timeline (deep, ≤4)
+- Firecrawl — leftover pages the free fetch could not read (deep, ≤6 leftover ops)
+- Brave — independent index after Firecrawl (deep, ≤2)
 ```
 
-If free mode is already enough, the report says so and does not burn Brave credits.
+If the free layer already closed the gaps, the report says so and does not call Exa, Firecrawl, or Brave.
 
 ### Force free, even when coverage is thin
 
@@ -92,21 +94,40 @@ If free mode is already enough, the report says so and does not burn Brave credi
 /free-research --free what's happening with OpenClaw
 ```
 
-Never calls Exa or Brave. If the pass is thin, the report offers `--balanced` or `--deep`.
+Never calls Exa, Firecrawl, `firecrawl --status`, Brave, or `parallel-cli`. If the pass is thin, the report offers `--balanced` or `--deep`.
 
 ## Modes
 
 | Mode | Tools | Credits |
-| --- | --- | --- |
-| **free** (default) | last30days + TinyFish only | Zero paid |
-| **balanced** | free layer + selective Exa on high-value gaps | Minimal paid |
-| **deep** | last30days + TinyFish + Exa + Brave if needed | Full |
+|------|--------|---------|
+| **free** (default) | last30days + TinyFish only (host web tools if TinyFish is down) | Zero paid |
+| **balanced** | free layer + sequential paid tools on remaining gaps (Exa ≤2, Firecrawl ≤3 leftover ops, Brave ≤1) | Minimal paid |
+| **deep** | same order; Exa ≤4, Firecrawl ≤6 leftover ops, Brave ≤2; stop when remaining gaps empty | Paid, capped |
+
+This table mirrors [skills/free-research/SKILL.md](skills/free-research/SKILL.md). That file owns these Exa, Firecrawl, and Brave ceilings. [skills/free-research/references/tool-routing.md](skills/free-research/references/tool-routing.md) owns the `parallel-cli` caps.
+
+## Run notes
+
+A run can read and write a version-2 note when `FREE_RESEARCH_NOTES_DIR` is set. The value is the absolute path of the project folder that contains `runs/`. Grok supplies it through `[shell_environment_policy.set]` in the user Grok config (Grok user guide `26-config-reference.md`). The skill reads that one variable by name. Unset, empty, relative, missing, or a resolved `runs/` path that escapes the folder means the run skips the note. There is no fallback location. The report and Tools Used never print the value or a filesystem path. Tools Used says only whether a note was read, written, or skipped, and why.
+
+```toml
+[shell_environment_policy.set]
+FREE_RESEARCH_NOTES_DIR = "/absolute/path/to/the-project-folder"
+```
+
+Check the notes without writing or fetching:
+
+```bash
+python3 scripts/lint_run_notes.py /absolute/path/to/the-project-folder/runs
+```
+
+`scripts/lint_run_notes.py` is read-only. Exit 0 means no version-2 errors. Legacy-note problems are warnings and do not fail that exit.
 
 ## What this is not
 
 - Not last30days. Install that separately for a pure community pass.
 - Not TinyFish. Auth lives on the TinyFish MCP, not in this repo.
-- Not a Brave or Exa wrapper. Those run only after the decision gate, and only in `--balanced` / `--deep`.
+- Not an Exa, Firecrawl, or Brave wrapper. Those run only after the decision gate, and only in `--balanced` / `--deep`.
 - Not a bundled search engine, MCP server, or `.mcpb` / `.skill` release factory.
 
 ## Manual (developer)

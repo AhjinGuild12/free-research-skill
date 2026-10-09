@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+README_MD = ROOT / "README.md"
 SKILL_DIR = ROOT / "skills" / "free-research"
 SKILL_MD = SKILL_DIR / "SKILL.md"
 TOOL_ROUTING = SKILL_DIR / "references" / "tool-routing.md"
@@ -177,6 +178,22 @@ def _ceiling_statements(text: str) -> list[tuple[str | None, str, int]]:
     return found
 
 
+def _modes_table_rows(text: str) -> list[str]:
+    lines = text.splitlines()
+    start = next((index for index, line in enumerate(lines) if line.strip() == "## Modes"), None)
+    if start is None:
+        raise AssertionError("## Modes section not found")
+    rows: list[str] = []
+    for line in lines[start + 1 :]:
+        if line.startswith("|"):
+            rows.append(" ".join(line.split()))
+        elif rows:
+            break
+    if len(rows) < 3:
+        raise AssertionError("Modes table not found")
+    return rows[2:]
+
+
 def _modes_table(text: str) -> dict[str, dict[str, int]]:
     lines = text.splitlines()
     start = next((index for index, line in enumerate(lines) if line.strip() == "## Modes"), None)
@@ -286,6 +303,12 @@ class TestSkillContract(unittest.TestCase):
                         f"{relative}: {mode} {tool} ≤{count} != Modes table ≤{wanted}"
                     )
         self.assertEqual([], problems, "\n".join(problems))
+
+    def test_readme_modes_table_matches_skill(self) -> None:
+        skill_text = SKILL_MD.read_text(encoding="utf-8")
+        readme_text = README_MD.read_text(encoding="utf-8")
+        self.assertEqual(_modes_table_rows(skill_text), _modes_table_rows(readme_text))
+        self.assertEqual(_modes_table(skill_text), _modes_table(readme_text))
 
     def test_parallel_cli_caps(self) -> None:
         problems: list[str] = []

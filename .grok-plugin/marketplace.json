@@ -9,7 +9,7 @@
     {
       "name": "free-research",
       "description": "Free-first multi-source research. last30days community pulse plus TinyFish search/fetch, with a remaining-gap gate before Exa, Brave, and Firecrawl.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "category": "productivity",
       "source": {
         "source": "url",
