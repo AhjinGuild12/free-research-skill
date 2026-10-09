@@ -77,8 +77,15 @@ STOPWORDS = frozenset(
 )
 
 
+class _HelperMissing(Exception):
+    """The repository skill tree has no run-note helper. The message stays empty."""
+
+
 def _load_run_note():
-    """The skill directory owns the one topic codec. This linter imports it."""
+    """The skill directory owns the one topic codec. This linter imports it.
+
+    This file is a repository tool. A detached copy has no helper beside it.
+    """
     helper = (
         Path(__file__).resolve().parent.parent
         / "skills"
@@ -86,16 +93,35 @@ def _load_run_note():
         / "scripts"
         / "run_note.py"
     )
+    try:
+        present = helper.is_file()
+    except OSError:
+        present = False
+    if not present:
+        raise _HelperMissing
     spec = importlib.util.spec_from_file_location("free_research_run_note", helper)
     if spec is None or spec.loader is None:
-        raise ImportError("run-note helper is missing from the skill tree")
+        raise _HelperMissing
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except FileNotFoundError:
+        sys.modules.pop(spec.name, None)
+        raise _HelperMissing from None
     return module
 
 
-run_note = _load_run_note()
+try:
+    run_note = _load_run_note()
+except _HelperMissing:
+    if __name__ == "__main__":
+        print(
+            "lint_run_notes: run-note helper is missing from the skill tree",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    raise
 encode_topic = run_note.encode_topic
 decode_topic = run_note.decode_topic
 parse_frontmatter = run_note.parse_frontmatter

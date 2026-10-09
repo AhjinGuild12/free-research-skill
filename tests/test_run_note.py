@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import errno
+import io
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import date
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -163,6 +168,115 @@ class TestRunNoteHelper(unittest.TestCase):
             self.assertEqual("secret-marker", outside.read_text(encoding="utf-8"))
             self.assertFalse((runs / filename).exists())
             self.assertEqual([scratch.name], sorted(path.name for path in runs.iterdir()))
+
+    def test_permission_error_stderr_hides_the_vault_path(self) -> None:
+        helper = lint_run_notes.run_note
+        filename, note = _writable_note()
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "vault-secret-location"
+            project.mkdir()
+            vault = str(project)
+            self._assert_permission_failure(
+                lambda: mock.patch.object(
+                    helper.os,
+                    "mkdir",
+                    side_effect=PermissionError(
+                        errno.EACCES,
+                        "Permission denied",
+                        str(project / "runs"),
+                    ),
+                ),
+                project,
+                filename,
+                note,
+                vault,
+            )
+            runs = project / "runs"
+            runs.mkdir()
+            real_open = helper.os.open
+
+            def refuse_scratch(path, flags, mode=0o777, *, dir_fd=None):
+                if dir_fd is not None:
+                    where = str(runs / str(path))
+                    raise PermissionError(errno.EACCES, "Permission denied", where)
+                return real_open(path, flags, mode)
+
+            self._assert_permission_failure(
+                lambda: mock.patch.object(helper.os, "open", side_effect=refuse_scratch),
+                project,
+                filename,
+                note,
+                vault,
+            )
+            self.assertEqual([], list(runs.iterdir()))
+
+    def test_runs_symlink_swap_cannot_redirect_the_write(self) -> None:
+        helper = lint_run_notes.run_note
+        filename, note = _writable_note()
+        token = "abcdef0123456789"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            project = root / "project"
+            runs = project / "runs"
+            runs.mkdir(parents=True)
+            outside = root / "outside"
+            outside.mkdir()
+            (outside / "marker.txt").write_text("untouched", encoding="utf-8")
+            real_open = helper.os.open
+            swapped = False
+
+            def open_then_swap(path, flags, mode=0o777, *, dir_fd=None):
+                nonlocal swapped
+                if dir_fd is not None and not swapped:
+                    swapped = True
+                    os.rename(runs, project / "runs-held")
+                    os.symlink(outside, runs)
+                return real_open(path, flags, mode, dir_fd=dir_fd)
+
+            stderr = io.StringIO()
+            with mock.patch.object(helper.os, "open", side_effect=open_then_swap):
+                with redirect_stderr(stderr):
+                    code = _write_in_process(project, filename, note, token)
+            held = project / "runs-held"
+            rendered = stderr.getvalue()
+            self.assertTrue(swapped)
+            self.assertEqual(0, code, rendered)
+            self.assertEqual(["marker.txt"], sorted(path.name for path in outside.iterdir()))
+            self.assertEqual(note, (held / filename).read_text(encoding="utf-8"))
+            self.assertEqual([], [path.name for path in held.iterdir() if path.name.endswith(".tmp")])
+            self.assertNotIn(str(outside), rendered)
+            self.assertNotIn("Traceback", rendered)
+
+    def _assert_permission_failure(self, patcher, project: Path, filename: str, note: str, vault: str) -> None:
+        stderr = io.StringIO()
+        with patcher():
+            with redirect_stderr(stderr):
+                code = _write_in_process(project, filename, note, None)
+        rendered = stderr.getvalue()
+        self.assertEqual(1, code)
+        self.assertNotIn(vault, rendered)
+        self.assertNotIn("Traceback", rendered)
+        self.assertNotIn("PermissionError", rendered)
+        self.assertTrue(rendered.startswith("run_note: "))
+        self.assertNotIn("\n", rendered.strip())
+
+
+def _writable_note() -> tuple[str, str]:
+    topic = "Can a finance team build a custom EzzyBills to Xero integration"
+    key = "ezzybills-xero-integration"
+    filename = lint_run_notes.run_note.note_filename(key, topic)
+    return filename, _note(lint_run_notes.encode_topic(topic), key)
+
+
+def _write_in_process(project: Path, filename: str, note: str, token: str | None) -> int:
+    helper = lint_run_notes.run_note
+    args = ["write", "--project", str(project), "--filename", filename]
+    if token is not None:
+        args.extend(["--token", token])
+    stdin = io.TextIOWrapper(io.BytesIO(note.encode("utf-8")))
+    with mock.patch.object(helper.sys, "stdin", stdin):
+        with redirect_stdout(io.StringIO()):
+            return helper.main(args)
 
 
 if __name__ == "__main__":

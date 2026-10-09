@@ -121,7 +121,7 @@ Check the notes without writing or fetching:
 python3 scripts/lint_run_notes.py /absolute/path/to/the-project-folder/runs
 ```
 
-`scripts/lint_run_notes.py` is read-only. Exit 0 means no version-2 errors. Legacy-note problems are warnings and do not fail that exit.
+`scripts/lint_run_notes.py` is read-only and is a repository tool. It loads the topic codec from `skills/free-research/scripts/run_note.py` in this checkout. Exit 0 means no version-2 errors. Legacy-note problems are warnings and do not fail that exit. Copying the linter file without that helper fails with one line, `lint_run_notes: run-note helper is missing from the skill tree`, and no traceback.
 
 ## What this is not
 

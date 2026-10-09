@@ -52,6 +52,7 @@ _JSON_EXTRA_ESCAPES = {
     "\u2029": "\\u2029",
 }
 _OPEN_FLAGS = os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_WRONLY
+_DIR_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
 
 
 class WriteError(Exception):
@@ -203,6 +204,8 @@ def validated_runs(project: Path) -> Path:
             os.mkdir(expected, 0o700)
         except FileExistsError:
             pass
+        except OSError:
+            raise WriteError("runs is not a directory") from None
     try:
         resolved = given.resolve(strict=True)
     except OSError:
@@ -252,6 +255,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except UnicodeError:
         print("run_note: stdin is not utf-8", file=sys.stderr)
+        return 1
+    except OSError:
+        print("run_note: scratch create failed", file=sys.stderr)
         return 1
     sys.stdout.write(f"wrote {args.filename}\n")
     return 0
@@ -313,89 +319,140 @@ def _missing(path: Path) -> bool:
 
 def _write_exclusive(runs: Path, filename: str, token: str, text: str) -> None:
     scratch_name = f".{filename}.{token}.tmp"
+    _one_segment(filename, "filename must be one path segment")
     _one_segment(scratch_name, "scratch must be one path segment")
-    scratch = runs / scratch_name
-    if scratch.parent != runs:
-        raise WriteError("scratch is not a direct child of runs")
-    _refuse_existing(scratch)
+    # Pin the directory we just validated. A symlink swapped in at `runs`
+    # must not redirect the create, the rename, or the unlink.
+    directory = _open_runs_directory(runs)
     try:
-        descriptor = os.open(scratch, _OPEN_FLAGS, 0o600)
+        _publish_exclusive(directory, scratch_name, filename, text)
+    except OSError:
+        raise WriteError("scratch create failed") from None
+    finally:
+        _close_quietly(directory)
+
+
+def _open_runs_directory(runs: Path) -> int:
+    """Return an fd for ``runs`` opened with ``O_DIRECTORY|O_NOFOLLOW``.
+
+    ``fstat`` must show that same directory. Callers do child operations
+    with ``dir_fd`` and close this fd.
+    """
+    try:
+        descriptor = os.open(runs, _DIR_FLAGS)
     except OSError as exc:
-        _raise_create_error(scratch, exc)
+        raise _runs_open_error(exc) from None
+    try:
+        info = os.fstat(descriptor)
+        linked = os.lstat(runs)
+    except OSError as exc:
+        _close_quietly(descriptor)
+        raise _runs_open_error(exc) from None
+    if not _same_directory(info, linked):
+        _close_quietly(descriptor)
+        raise WriteError("runs escapes the project folder")
+    return descriptor
+
+
+def _runs_open_error(exc: OSError) -> WriteError:
+    if exc.errno == errno.ELOOP:
+        return WriteError("runs escapes the project folder")
+    return WriteError("runs is not a directory")
+
+
+def _same_directory(opened: os.stat_result, linked: os.stat_result) -> bool:
+    return (
+        stat.S_ISDIR(opened.st_mode)
+        and stat.S_ISDIR(linked.st_mode)
+        and not stat.S_ISLNK(linked.st_mode)
+        and opened.st_dev == linked.st_dev
+        and opened.st_ino == linked.st_ino
+    )
+
+
+def _publish_exclusive(directory: int, scratch_name: str, filename: str, text: str) -> None:
+    _refuse_existing(directory, scratch_name)
+    try:
+        descriptor = os.open(scratch_name, _OPEN_FLAGS, 0o600, dir_fd=directory)
+    except OSError as exc:
+        _raise_create_error(directory, scratch_name, exc)
         return
     owned: tuple[int, int] | None = None
     try:
-        owned = _owned_regular_file(descriptor, scratch)
+        owned = _owned_regular_file(descriptor, directory, scratch_name)
         try:
             _write_all(descriptor, text.encode("utf-8"))
             os.fsync(descriptor)
         except OSError:
             raise WriteError("scratch create failed") from None
-        _owned_regular_file(descriptor, scratch)
+        _owned_regular_file(descriptor, directory, scratch_name)
         if parse_date(validate_note(filename, text).get("expires", "")) is None:
             raise WriteError("invalid note: expires is not a date")
-        target = runs / filename
-        _refuse_symlink(target, "refused symlink target")
+        _refuse_symlink(directory, filename, "refused symlink target")
         try:
-            os.rename(scratch, target)
+            os.rename(scratch_name, filename, src_dir_fd=directory, dst_dir_fd=directory)
         except OSError:
             raise WriteError("scratch create failed") from None
         owned = None
         try:
-            _fsync_dir(runs)
+            os.fsync(directory)
         except OSError:
             raise WriteError("scratch create failed") from None
     finally:
-        os.close(descriptor)
+        _close_quietly(descriptor)
         if owned is not None:
-            _cleanup_scratch(scratch, owned[0], owned[1])
+            _cleanup_scratch(directory, scratch_name, owned[0], owned[1])
 
 
-def _refuse_existing(path: Path) -> None:
-    try:
-        info = os.lstat(path)
-    except OSError:
+def _refuse_existing(directory: int, name: str) -> None:
+    info = _lstat_child(directory, name)
+    if info is None:
         return
     if stat.S_ISLNK(info.st_mode):
         raise WriteError("refused symlink scratch")
     raise WriteError("scratch already exists")
 
 
-def _raise_create_error(path: Path, exc: OSError) -> None:
+def _raise_create_error(directory: int, name: str, exc: OSError) -> None:
     if exc.errno == errno.ELOOP:
         raise WriteError("refused symlink scratch") from None
     if exc.errno == errno.EEXIST:
-        try:
-            info = os.lstat(path)
-        except OSError:
-            info = None
+        info = _lstat_child(directory, name)
         if info is not None and stat.S_ISLNK(info.st_mode):
             raise WriteError("refused symlink scratch") from None
         raise WriteError("scratch already exists") from None
     raise WriteError("scratch create failed") from None
 
 
-def _owned_regular_file(descriptor: int, path: Path) -> tuple[int, int]:
-    info = os.fstat(descriptor)
-    if not stat.S_ISREG(info.st_mode):
-        raise WriteError("refused symlink scratch")
+def _owned_regular_file(descriptor: int, directory: int, name: str) -> tuple[int, int]:
     try:
-        linked = os.lstat(path)
+        info = os.fstat(descriptor)
     except OSError:
         raise WriteError("scratch create failed") from None
+    if not stat.S_ISREG(info.st_mode):
+        raise WriteError("refused symlink scratch")
+    linked = _lstat_child(directory, name)
+    if linked is None:
+        raise WriteError("scratch create failed")
     same = linked.st_dev == info.st_dev and linked.st_ino == info.st_ino
     if stat.S_ISLNK(linked.st_mode) or not same:
         raise WriteError("refused symlink scratch")
     return info.st_dev, info.st_ino
 
 
-def _refuse_symlink(path: Path, message: str) -> None:
-    try:
-        info = os.lstat(path)
-    except OSError:
-        return
-    if stat.S_ISLNK(info.st_mode):
+def _refuse_symlink(directory: int, name: str, message: str) -> None:
+    info = _lstat_child(directory, name)
+    if info is not None and stat.S_ISLNK(info.st_mode):
         raise WriteError(message)
+
+
+def _lstat_child(directory: int, name: str) -> os.stat_result | None:
+    try:
+        return os.lstat(name, dir_fd=directory)
+    except OSError as exc:
+        if exc.errno == errno.ENOENT:
+            return None
+        raise WriteError("scratch create failed") from None
 
 
 def _write_all(descriptor: int, payload: bytes) -> None:
@@ -407,21 +464,17 @@ def _write_all(descriptor: int, payload: bytes) -> None:
         view = view[written:]
 
 
-def _fsync_dir(path: Path) -> None:
-    flags = os.O_RDONLY
-    if hasattr(os, "O_DIRECTORY"):
-        flags |= os.O_DIRECTORY
-    descriptor = os.open(path, flags)
+def _close_quietly(descriptor: int) -> None:
     try:
-        os.fsync(descriptor)
-    finally:
         os.close(descriptor)
+    except OSError:
+        return
 
 
-def _cleanup_scratch(path: Path, device: int, inode: int) -> None:
+def _cleanup_scratch(directory: int, name: str, device: int, inode: int) -> None:
     """Unlink only the regular file this run created. Leave a symlink alone."""
     try:
-        info = os.lstat(path)
+        info = os.lstat(name, dir_fd=directory)
     except OSError:
         return
     if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
@@ -429,7 +482,7 @@ def _cleanup_scratch(path: Path, device: int, inode: int) -> None:
     if info.st_dev != device or info.st_ino != inode:
         return
     try:
-        os.unlink(path)
+        os.unlink(name, dir_fd=directory)
     except OSError:
         return
 

@@ -342,6 +342,28 @@ class TestLintRunNotes(unittest.TestCase):
         self.assertIn("current\tok\t-", completed.stdout)
         self.assertEqual("", completed.stderr)
 
+    def test_detached_linter_exits_without_a_traceback(self) -> None:
+        source = (ROOT / "scripts" / "lint_run_notes.py").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            detached_dir = Path(tmp) / "detached"
+            detached_dir.mkdir()
+            detached = detached_dir / "lint_run_notes.py"
+            detached.write_text(source, encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, "-B", str(detached), str(detached_dir)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        self.assertEqual(1, completed.returncode)
+        self.assertEqual("", completed.stdout)
+        self.assertEqual(
+            "lint_run_notes: run-note helper is missing from the skill tree\n",
+            completed.stderr,
+        )
+        self.assertNotIn("Traceback", completed.stderr)
+        self.assertNotIn(str(tmp), completed.stderr)
+
 
 def _run(folder: Path) -> tuple[int, str]:
     from io import StringIO
