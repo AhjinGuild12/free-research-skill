@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -253,6 +255,61 @@ class TestLintRunNotes(unittest.TestCase):
         self.assertEqual(["invalid-key"], _errors(invalid))
         self.assertEqual(1, invalid_code)
 
+    def test_vault_notes_example_validates_through_lint_text(self) -> None:
+        filename, text = _vault_note_example()
+        self.assertTrue(text.startswith("---\n"), text)
+        self.assertIn("\n---\n", text)
+        result = lint_run_notes.lint_text(filename, text, date(2026, 10, 1))
+        self.assertEqual("v2", result.classification)
+        self.assertNotEqual("skipped", result.classification)
+        self.assertEqual([], result.issues)
+        self.assertEqual("current", result.status)
+        fields, _body = lint_run_notes.parse_frontmatter(text)
+        assert fields is not None
+        normalized = re.sub(r"\s+", " ", fields["topic"].strip().lower())
+        digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:8]
+        self.assertEqual(f"{fields['key']}--{digest}.md", filename)
+
+    def test_topic_quotes_and_newlines_round_trip(self) -> None:
+        samples = (
+            '"Can Xero sync?"',
+            "one\ntwo",
+            'he said "hi"\nthen \\ left',
+            "  spaced  ",
+            "plain topic",
+            "Can Xero: sync?",
+            "",
+            "line\r\nbreak",
+            'quote " and newline\n',
+        )
+        for topic in samples:
+            with self.subTest(topic=topic):
+                encoded = lint_run_notes.encode_topic(topic)
+                self.assertNotIn("\n", encoded)
+                self.assertNotIn("\r", encoded)
+                self.assertEqual(topic, lint_run_notes.decode_topic(encoded))
+                fields, _body = lint_run_notes.parse_frontmatter(_v2_text(topic=encoded))
+                self.assertIsNotNone(fields)
+                assert fields is not None
+                self.assertEqual(topic, fields["topic"])
+
+    def test_encoded_quoted_and_newline_topics_validate(self) -> None:
+        topics = ('"Can Xero sync?"', "Can Xero sync?\nSecond line")
+        for topic in topics:
+            with self.subTest(topic=topic):
+                encoded = lint_run_notes.encode_topic(topic)
+                text = _v2_text(topic=encoded)
+                result = lint_run_notes.lint_text(VALID_NAME, text, date(2026, 10, 1))
+                self.assertEqual("v2", result.classification)
+                self.assertNotEqual("skipped", result.classification)
+                self.assertEqual([], result.issues)
+                fields, _body = lint_run_notes.parse_frontmatter(text)
+                assert fields is not None
+                self.assertEqual(topic, fields["topic"])
+        naive = '"Can Xero sync?"'
+        self.assertNotEqual(naive, lint_run_notes.decode_topic(naive))
+        self.assertEqual(naive, lint_run_notes.decode_topic(lint_run_notes.encode_topic(naive)))
+
     def test_script_entrypoint_exits_zero_for_valid_fixture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
@@ -336,6 +393,16 @@ def _v2_text(**overrides: object) -> str:
     if closing:
         body.append(closing)
     return "---\n" + "\n".join(str(field) for field in fields) + "\n---\n" + "\n".join(body) + "\n"
+
+
+def _vault_note_example() -> tuple[str, str]:
+    notes = (ROOT / "skills" / "free-research" / "references" / "vault-notes.md").read_text(
+        encoding="utf-8"
+    )
+    match = re.search(r"filename `([^`]+\.md)`:\n\n```run-note\n(.*?)\n```", notes, re.DOTALL)
+    if match is None:
+        raise AssertionError("vault-notes.md has no delimited run-note example")
+    return match.group(1), match.group(2) + "\n"
 
 
 def _legacy_text(body: str, *, closing: bool = True) -> str:

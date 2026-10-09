@@ -108,7 +108,7 @@ This table mirrors [skills/free-research/SKILL.md](skills/free-research/SKILL.md
 
 ## Run notes
 
-A run can read and write a version-2 note when `FREE_RESEARCH_NOTES_DIR` is set. The value is the absolute path of the project folder that contains `runs/`. Grok supplies it through `[shell_environment_policy.set]` in the user Grok config (Grok user guide `26-config-reference.md`). The skill reads that one variable by name. Unset, empty, relative, missing, or a resolved `runs/` path that escapes the folder means the run skips the note. There is no fallback location. The report and Tools Used never print the value or a filesystem path. Tools Used says only whether a note was read, written, or skipped, and why.
+A run can read and write a version-2 note when `FREE_RESEARCH_NOTES_DIR` is set. The value is the absolute path of the project folder that contains `runs/`. Grok supplies it through `[shell_environment_policy.set]` in the user Grok config (Grok user guide `26-config-reference.md`). The skill reads that one variable by name. Unset, empty, relative, missing, or a resolved `runs/` path that escapes the folder means the run skips the note. There is no fallback location. The run never prints the value of `FREE_RESEARCH_NOTES_DIR`. The filesystem-path ban is the vault location and the vault-note line only. That line does not include the vault location or a filesystem path. It says only whether a note was read, written, or skipped, and why. Other Tools Used lines may name a tool output path, including the Firecrawl output path.
 
 ```toml
 [shell_environment_policy.set]

@@ -406,6 +406,43 @@ class TestSkillContract(unittest.TestCase):
         self.assertNotIn("sibling slug is neither read", skill)
         self.assertIn(r"^[a-z0-9]+(?:-[a-z0-9]+){1,3}$", notes)
 
+    def test_checklist_order_puts_synthesis_last(self) -> None:
+        checklist = SKILL_MD.read_text(encoding="utf-8").split("## Execution Checklist", 1)[1]
+        self.assertIn(
+            "gate return → safety floor + verification tail → note write → synthesis",
+            checklist,
+        )
+        self.assertNotIn("Walk Step 1 through Step 6 in order, then the safety floor", checklist)
+
+    def test_legacy_lookup_requires_absent_schema(self) -> None:
+        notes = VAULT_NOTES.read_text(encoding="utf-8")
+        self.assertIn("the `schema` field is absent", notes)
+        self.assertIn("Skip unsupported schemas.", notes)
+        self.assertNotIn("no `schema: 2`", notes)
+
+    def test_filesystem_path_ban_is_vault_line_only(self) -> None:
+        notes = VAULT_NOTES.read_text(encoding="utf-8")
+        readme = README_MD.read_text(encoding="utf-8")
+        scoped = "The filesystem-path ban is only the vault location and the vault-note line"
+        self.assertIn(scoped, notes)
+        self.assertIn("Firecrawl output path", notes)
+        self.assertNotIn("any filesystem path in the report or under Tools Used", notes)
+        self.assertIn(
+            "The filesystem-path ban is the vault location and the vault-note line only.",
+            readme,
+        )
+        self.assertIn("including the Firecrawl output path", readme)
+        self.assertNotIn("never print the value or a filesystem path", readme)
+
+    def test_scratch_create_is_unique_exclusive_and_scoped(self) -> None:
+        notes = VAULT_NOTES.read_text(encoding="utf-8")
+        self.assertIn(".<filename>.<token>.tmp", notes)
+        self.assertIn("O_EXCL", notes)
+        self.assertIn("O_NOFOLLOW", notes)
+        self.assertIn("Clean up only the scratch this run created.", notes)
+        self.assertIn("do not unlink it", notes)
+        self.assertNotIn("runs/.<filename>.tmp", notes)
+
     def test_key_grammar_allows_digits_and_bounds_filenames(self) -> None:
         self.assertIsNotNone(KEY_RE.fullmatch("microsoft-ms-102"))
         self.assertIsNotNone(KEY_RE.fullmatch("ezzybills-xero-integration"))

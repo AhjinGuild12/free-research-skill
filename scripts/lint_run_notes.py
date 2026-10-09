@@ -8,6 +8,7 @@ column. This script never writes and never fetches.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from dataclasses import dataclass, field
@@ -171,7 +172,12 @@ def parse_frontmatter(text: str) -> tuple[dict[str, str] | None, str | None]:
         if not line.strip() or ":" not in line:
             continue
         name, value = line.split(":", 1)
-        fields[name.strip()] = unquote(value.strip())
+        field_name = name.strip()
+        raw_value = value.strip()
+        if field_name == "topic":
+            fields[field_name] = decode_topic(raw_value)
+        else:
+            fields[field_name] = unquote(raw_value)
     return fields, None
 
 
@@ -423,6 +429,42 @@ def unquote(value: str) -> str:
     if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
         return value[1:-1]
     return value
+
+
+def encode_topic(topic: str) -> str:
+    """Return the one-line value written after ``topic: ``.
+
+    Plain topics are unchanged. A topic that is empty, has leading or trailing
+    whitespace, or contains a double quote, a backslash, or a line break is one
+    JSON string (``json.dumps``, Unicode kept as itself). ``decode_topic`` is
+    the inverse. The vault-note writer, lookup, and this linter share these two
+    functions. Do not strip one surrounding quote pair instead.
+    """
+    if _topic_is_plain(topic):
+        return topic
+    return json.dumps(topic, ensure_ascii=False)
+
+
+def decode_topic(raw: str) -> str:
+    """Inverse of ``encode_topic``. A JSON string is unescaped; other text stays literal."""
+    value = raw.strip()
+    if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
+        try:
+            decoded = json.loads(value)
+        except json.JSONDecodeError:
+            return value
+        if isinstance(decoded, str):
+            return decoded
+    return value
+
+
+def _topic_is_plain(topic: str) -> bool:
+    if topic == "" or topic != topic.strip():
+        return False
+    for character in topic:
+        if character in {'"', "\\"} or ord(character) < 32 or character in {"\u2028", "\u2029"}:
+            return False
+    return True
 
 
 if __name__ == "__main__":
