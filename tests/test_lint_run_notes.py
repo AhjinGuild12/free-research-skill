@@ -9,7 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -269,6 +269,23 @@ class TestLintRunNotes(unittest.TestCase):
         normalized = re.sub(r"\s+", " ", fields["topic"].strip().lower())
         digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:8]
         self.assertEqual(f"{fields['key']}--{digest}.md", filename)
+        run_date = date.fromisoformat(fields["run_date"])
+        expires = date.fromisoformat(fields["expires"])
+        span = (expires - run_date).days
+        self.assertIn(span, (7, 30, 90))
+        notes = (ROOT / "skills" / "free-research" / "references" / "vault-notes.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "7 days for a news intent, 90 days when the confirming body is a stable official doc, otherwise 30 days",
+            notes,
+        )
+        self.assertIn(
+            "This example is not a news intent, and the confirming body is not a stable official doc, so it uses the 30-day bucket.",
+            notes,
+        )
+        self.assertEqual(timedelta(days=30), expires - run_date)
+        self.assertNotEqual(date(2099, 1, 1), expires)
 
     def test_topic_quotes_and_newlines_round_trip(self) -> None:
         samples = (

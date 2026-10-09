@@ -8,7 +8,7 @@ column. This script never writes and never fetches.
 from __future__ import annotations
 
 import argparse
-import json
+import importlib.util
 import re
 import sys
 from dataclasses import dataclass, field
@@ -75,6 +75,30 @@ STOPWORDS = frozenset(
         "their",
     }
 )
+
+
+def _load_run_note():
+    """The skill directory owns the one topic codec. This linter imports it."""
+    helper = (
+        Path(__file__).resolve().parent.parent
+        / "skills"
+        / "free-research"
+        / "scripts"
+        / "run_note.py"
+    )
+    spec = importlib.util.spec_from_file_location("free_research_run_note", helper)
+    if spec is None or spec.loader is None:
+        raise ImportError("run-note helper is missing from the skill tree")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+run_note = _load_run_note()
+encode_topic = run_note.encode_topic
+decode_topic = run_note.decode_topic
+parse_frontmatter = run_note.parse_frontmatter
 
 
 @dataclass(frozen=True)
@@ -158,27 +182,6 @@ def classify(fields: dict[str, str] | None) -> str:
             return "v2"
         return "unsupported"
     return "legacy"
-
-
-def parse_frontmatter(text: str) -> tuple[dict[str, str] | None, str | None]:
-    """Preserve fields for schema classification; None body means an unclosed block."""
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return None, text
-    fields: dict[str, str] = {}
-    for index, line in enumerate(lines[1:], start=1):
-        if line.strip() == "---":
-            return fields, "\n".join(lines[index + 1 :])
-        if not line.strip() or ":" not in line:
-            continue
-        name, value = line.split(":", 1)
-        field_name = name.strip()
-        raw_value = value.strip()
-        if field_name == "topic":
-            fields[field_name] = decode_topic(raw_value)
-        else:
-            fields[field_name] = unquote(raw_value)
-    return fields, None
 
 
 def lint_v2(filename: str, fields: dict[str, str], body: str, today: date) -> FileResult:
@@ -423,48 +426,6 @@ def exit_code(results: list[FileResult]) -> int:
             if issue.severity == "error":
                 return 1
     return 0
-
-
-def unquote(value: str) -> str:
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
-        return value[1:-1]
-    return value
-
-
-def encode_topic(topic: str) -> str:
-    """Return the one-line value written after ``topic: ``.
-
-    Plain topics are unchanged. A topic that is empty, has leading or trailing
-    whitespace, or contains a double quote, a backslash, or a line break is one
-    JSON string (``json.dumps``, Unicode kept as itself). ``decode_topic`` is
-    the inverse. The vault-note writer, lookup, and this linter share these two
-    functions. Do not strip one surrounding quote pair instead.
-    """
-    if _topic_is_plain(topic):
-        return topic
-    return json.dumps(topic, ensure_ascii=False)
-
-
-def decode_topic(raw: str) -> str:
-    """Inverse of ``encode_topic``. A JSON string is unescaped; other text stays literal."""
-    value = raw.strip()
-    if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
-        try:
-            decoded = json.loads(value)
-        except json.JSONDecodeError:
-            return value
-        if isinstance(decoded, str):
-            return decoded
-    return value
-
-
-def _topic_is_plain(topic: str) -> bool:
-    if topic == "" or topic != topic.strip():
-        return False
-    for character in topic:
-        if character in {'"', "\\"} or ord(character) < 32 or character in {"\u2028", "\u2029"}:
-            return False
-    return True
 
 
 if __name__ == "__main__":
