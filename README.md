@@ -108,7 +108,7 @@ This table mirrors [skills/free-research/SKILL.md](skills/free-research/SKILL.md
 
 ## Run notes
 
-A run can read and write a version-2 note when `FREE_RESEARCH_NOTES_DIR` is set. The value is the absolute path of the project folder that contains `runs/`. Grok supplies it through `[shell_environment_policy.set]` in the user Grok config (Grok user guide `26-config-reference.md`). The skill reads that one variable by name. Unset, empty, relative, missing, or a resolved `runs/` path that escapes the folder means the run skips the note. There is no fallback location. The report and Tools Used never print the value or a filesystem path. Tools Used says only whether a note was read, written, or skipped, and why.
+A run can read and write a version-2 note when `FREE_RESEARCH_NOTES_DIR` is set. The value is the absolute path of the project folder that contains `runs/`. Grok supplies it through `[shell_environment_policy.set]` in the user Grok config (Grok user guide `26-config-reference.md`). The skill reads that one variable by name. Unset, empty, relative, missing, or a resolved `runs/` path that escapes the folder means the run skips the note. There is no fallback location. The run never prints the value of `FREE_RESEARCH_NOTES_DIR`. The filesystem-path ban is the vault location and the vault-note line only. That line does not include the vault location or a filesystem path. It says only whether a note was read, written, or skipped, and why. Other Tools Used lines may name a tool output path, including the Firecrawl output path.
 
 ```toml
 [shell_environment_policy.set]
@@ -121,7 +121,7 @@ Check the notes without writing or fetching:
 python3 scripts/lint_run_notes.py /absolute/path/to/the-project-folder/runs
 ```
 
-`scripts/lint_run_notes.py` is read-only. Exit 0 means no version-2 errors. Legacy-note problems are warnings and do not fail that exit.
+`scripts/lint_run_notes.py` is read-only and is a repository tool. It loads the topic codec from `skills/free-research/scripts/run_note.py` in this checkout. Exit 0 means no version-2 errors. Legacy-note problems are warnings and do not fail that exit. Copying the linter file without that helper fails with one line, `lint_run_notes: run-note helper is missing from the skill tree`, and no traceback.
 
 ## What this is not
 
@@ -132,7 +132,7 @@ python3 scripts/lint_run_notes.py /absolute/path/to/the-project-folder/runs
 
 ## Manual (developer)
 
-Copy the repo skill directory onto the live skills-folder copy and the skill-pack copy, including `references/`. Do not symlink this repo over a newer live tree. The installed plugin checkout is a separate publish and is not updated by that copy.
+Copy the repo skill directory onto the live skills-folder copy and the skill-pack copy, including `references/` and `scripts/`. `scripts/run_note.py` is the skill-local note helper. Do not symlink this repo over a newer live tree. The installed plugin checkout is a separate publish and is not updated by that copy.
 
 ```bash
 git clone https://github.com/AhjinGuild12/free-research-skill.git

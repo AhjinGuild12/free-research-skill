@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -253,6 +255,78 @@ class TestLintRunNotes(unittest.TestCase):
         self.assertEqual(["invalid-key"], _errors(invalid))
         self.assertEqual(1, invalid_code)
 
+    def test_vault_notes_example_validates_through_lint_text(self) -> None:
+        filename, text = _vault_note_example()
+        self.assertTrue(text.startswith("---\n"), text)
+        self.assertIn("\n---\n", text)
+        result = lint_run_notes.lint_text(filename, text, date(2026, 10, 1))
+        self.assertEqual("v2", result.classification)
+        self.assertNotEqual("skipped", result.classification)
+        self.assertEqual([], result.issues)
+        self.assertEqual("current", result.status)
+        fields, _body = lint_run_notes.parse_frontmatter(text)
+        assert fields is not None
+        normalized = re.sub(r"\s+", " ", fields["topic"].strip().lower())
+        digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:8]
+        self.assertEqual(f"{fields['key']}--{digest}.md", filename)
+        run_date = date.fromisoformat(fields["run_date"])
+        expires = date.fromisoformat(fields["expires"])
+        span = (expires - run_date).days
+        self.assertIn(span, (7, 30, 90))
+        notes = (ROOT / "skills" / "free-research" / "references" / "vault-notes.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "7 days for a news intent, 90 days when the confirming body is a stable official doc, otherwise 30 days",
+            notes,
+        )
+        self.assertIn(
+            "This example is not a news intent, and the confirming body is not a stable official doc, so it uses the 30-day bucket.",
+            notes,
+        )
+        self.assertEqual(timedelta(days=30), expires - run_date)
+        self.assertNotEqual(date(2099, 1, 1), expires)
+
+    def test_topic_quotes_and_newlines_round_trip(self) -> None:
+        samples = (
+            '"Can Xero sync?"',
+            "one\ntwo",
+            'he said "hi"\nthen \\ left',
+            "  spaced  ",
+            "plain topic",
+            "Can Xero: sync?",
+            "",
+            "line\r\nbreak",
+            'quote " and newline\n',
+        )
+        for topic in samples:
+            with self.subTest(topic=topic):
+                encoded = lint_run_notes.encode_topic(topic)
+                self.assertNotIn("\n", encoded)
+                self.assertNotIn("\r", encoded)
+                self.assertEqual(topic, lint_run_notes.decode_topic(encoded))
+                fields, _body = lint_run_notes.parse_frontmatter(_v2_text(topic=encoded))
+                self.assertIsNotNone(fields)
+                assert fields is not None
+                self.assertEqual(topic, fields["topic"])
+
+    def test_encoded_quoted_and_newline_topics_validate(self) -> None:
+        topics = ('"Can Xero sync?"', "Can Xero sync?\nSecond line")
+        for topic in topics:
+            with self.subTest(topic=topic):
+                encoded = lint_run_notes.encode_topic(topic)
+                text = _v2_text(topic=encoded)
+                result = lint_run_notes.lint_text(VALID_NAME, text, date(2026, 10, 1))
+                self.assertEqual("v2", result.classification)
+                self.assertNotEqual("skipped", result.classification)
+                self.assertEqual([], result.issues)
+                fields, _body = lint_run_notes.parse_frontmatter(text)
+                assert fields is not None
+                self.assertEqual(topic, fields["topic"])
+        naive = '"Can Xero sync?"'
+        self.assertNotEqual(naive, lint_run_notes.decode_topic(naive))
+        self.assertEqual(naive, lint_run_notes.decode_topic(lint_run_notes.encode_topic(naive)))
+
     def test_script_entrypoint_exits_zero_for_valid_fixture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
@@ -267,6 +341,28 @@ class TestLintRunNotes(unittest.TestCase):
         self.assertIn("status\tseverity\tcode\tfile\tdetail", completed.stdout)
         self.assertIn("current\tok\t-", completed.stdout)
         self.assertEqual("", completed.stderr)
+
+    def test_detached_linter_exits_without_a_traceback(self) -> None:
+        source = (ROOT / "scripts" / "lint_run_notes.py").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            detached_dir = Path(tmp) / "detached"
+            detached_dir.mkdir()
+            detached = detached_dir / "lint_run_notes.py"
+            detached.write_text(source, encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, "-B", str(detached), str(detached_dir)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        self.assertEqual(1, completed.returncode)
+        self.assertEqual("", completed.stdout)
+        self.assertEqual(
+            "lint_run_notes: run-note helper is missing from the skill tree\n",
+            completed.stderr,
+        )
+        self.assertNotIn("Traceback", completed.stderr)
+        self.assertNotIn(str(tmp), completed.stderr)
 
 
 def _run(folder: Path) -> tuple[int, str]:
@@ -336,6 +432,16 @@ def _v2_text(**overrides: object) -> str:
     if closing:
         body.append(closing)
     return "---\n" + "\n".join(str(field) for field in fields) + "\n---\n" + "\n".join(body) + "\n"
+
+
+def _vault_note_example() -> tuple[str, str]:
+    notes = (ROOT / "skills" / "free-research" / "references" / "vault-notes.md").read_text(
+        encoding="utf-8"
+    )
+    match = re.search(r"filename `([^`]+\.md)`:\n\n```run-note\n(.*?)\n```", notes, re.DOTALL)
+    if match is None:
+        raise AssertionError("vault-notes.md has no delimited run-note example")
+    return match.group(1), match.group(2) + "\n"
 
 
 def _legacy_text(body: str, *, closing: bool = True) -> str:

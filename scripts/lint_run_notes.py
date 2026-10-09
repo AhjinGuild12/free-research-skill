@@ -8,6 +8,7 @@ column. This script never writes and never fetches.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import re
 import sys
 from dataclasses import dataclass, field
@@ -74,6 +75,56 @@ STOPWORDS = frozenset(
         "their",
     }
 )
+
+
+class _HelperMissing(Exception):
+    """The repository skill tree has no run-note helper. The message stays empty."""
+
+
+def _load_run_note():
+    """The skill directory owns the one topic codec. This linter imports it.
+
+    This file is a repository tool. A detached copy has no helper beside it.
+    """
+    helper = (
+        Path(__file__).resolve().parent.parent
+        / "skills"
+        / "free-research"
+        / "scripts"
+        / "run_note.py"
+    )
+    try:
+        present = helper.is_file()
+    except OSError:
+        present = False
+    if not present:
+        raise _HelperMissing
+    spec = importlib.util.spec_from_file_location("free_research_run_note", helper)
+    if spec is None or spec.loader is None:
+        raise _HelperMissing
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    except FileNotFoundError:
+        sys.modules.pop(spec.name, None)
+        raise _HelperMissing from None
+    return module
+
+
+try:
+    run_note = _load_run_note()
+except _HelperMissing:
+    if __name__ == "__main__":
+        print(
+            "lint_run_notes: run-note helper is missing from the skill tree",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    raise
+encode_topic = run_note.encode_topic
+decode_topic = run_note.decode_topic
+parse_frontmatter = run_note.parse_frontmatter
 
 
 @dataclass(frozen=True)
@@ -157,22 +208,6 @@ def classify(fields: dict[str, str] | None) -> str:
             return "v2"
         return "unsupported"
     return "legacy"
-
-
-def parse_frontmatter(text: str) -> tuple[dict[str, str] | None, str | None]:
-    """Preserve fields for schema classification; None body means an unclosed block."""
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return None, text
-    fields: dict[str, str] = {}
-    for index, line in enumerate(lines[1:], start=1):
-        if line.strip() == "---":
-            return fields, "\n".join(lines[index + 1 :])
-        if not line.strip() or ":" not in line:
-            continue
-        name, value = line.split(":", 1)
-        fields[name.strip()] = unquote(value.strip())
-    return fields, None
 
 
 def lint_v2(filename: str, fields: dict[str, str], body: str, today: date) -> FileResult:
@@ -417,12 +452,6 @@ def exit_code(results: list[FileResult]) -> int:
             if issue.severity == "error":
                 return 1
     return 0
-
-
-def unquote(value: str) -> str:
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
-        return value[1:-1]
-    return value
 
 
 if __name__ == "__main__":

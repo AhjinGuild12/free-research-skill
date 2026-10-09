@@ -201,7 +201,7 @@ Follow the owning sentence: Step 2 when last30days fails, Step 3 for TinyFish au
 
 ## Execution Checklist
 
-Walk Step 1 through Step 6 in order, then the safety floor. The owning sentence of each step is the check. Tabletop traces: `references/eval-scenarios.md`.
+The order is gate return → safety floor + verification tail → note write → synthesis. The owning sentence of each step is the check. Tabletop traces: `references/eval-scenarios.md`.
 
 ## Reference
 
