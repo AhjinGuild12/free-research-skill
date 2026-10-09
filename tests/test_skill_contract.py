@@ -52,6 +52,14 @@ VAULT_TOOLS_USED = (
     "The vault-note line is one line. It says whether a note was read, written, or skipped, and why. "
     "It does not include `FREE_RESEARCH_NOTES_DIR` or a filesystem path."
 )
+VAULT_BARE_FILENAME_EXAMPLE = "ezzybills-xero-integration--c30f01f3.md"
+VAULT_BARE_FILENAME_RULE = (
+    "When a note was read, name each note that was read by its bare filename only, "
+    f"for example `{VAULT_BARE_FILENAME_EXAMPLE}`. "
+    "When a note was written, name the new note's bare filename too. "
+    "Never include a directory or the vault path. "
+    "A bare filename has no directory and is not the vault path."
+)
 NORMALIZED_TOPIC_RULE = (
     "The normalized topic is the topic lowercased, with leading and trailing whitespace trimmed "
     "and each internal whitespace run collapsed to a single space."
@@ -441,6 +449,18 @@ class TestSkillContract(unittest.TestCase):
         )
         self.assertIn("including the Firecrawl output path", readme)
         self.assertNotIn("never print the value or a filesystem path", readme)
+
+    def test_vault_note_tools_used_names_bare_filename(self) -> None:
+        notes = VAULT_NOTES.read_text(encoding="utf-8")
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        self.assertNotIn("/", VAULT_BARE_FILENAME_EXAMPLE)
+        self.assertNotIn("\\", VAULT_BARE_FILENAME_EXAMPLE)
+        for text, label in ((notes, "vault-notes.md"), (skill, "SKILL.md")):
+            self.assertIn(VAULT_TOOLS_USED, text, label)
+            self.assertIn(VAULT_BARE_FILENAME_RULE, text, label)
+            self.assertNotIn(f"/{VAULT_BARE_FILENAME_EXAMPLE}", text, label)
+            self.assertNotIn(f"\\{VAULT_BARE_FILENAME_EXAMPLE}", text, label)
+        self.assertIn("that line does not include the vault location or a filesystem path", notes)
 
     def test_scratch_create_is_unique_exclusive_and_scoped(self) -> None:
         notes = VAULT_NOTES.read_text(encoding="utf-8")

@@ -19,6 +19,10 @@ Do not invent a path. Do not fall back into `raw/`, `3. Resources/X Articles/`, 
 
 When the project folder exists and `runs` is absent, create `runs` and use only that directory. When `runs` exists, resolve the project folder and resolve `runs`. Use `runs` only when that resolved path is the resolved project folder plus `/runs`. Any other resolved path escapes. Skip, and do not write.
 
+## Tools Used line
+
+The vault-note line is one line. It says whether a note was read, written, or skipped, and why. It does not include `FREE_RESEARCH_NOTES_DIR` or a filesystem path. When a note was read, name each note that was read by its bare filename only, for example `ezzybills-xero-integration--c30f01f3.md`. When a note was written, name the new note's bare filename too. Never include a directory or the vault path. A bare filename has no directory and is not the vault path.
+
 ## Key
 
 A key is 2-4 lowercase hyphenated words naming the subject. Each hyphenated word may contain digits. A key is valid when it is at most 48 bytes and matches `^[a-z0-9]+(?:-[a-z0-9]+){1,3}$`. `ezzybills-xero-integration` and `microsoft-ms-102` are valid keys.
