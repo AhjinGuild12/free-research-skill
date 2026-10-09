@@ -67,6 +67,27 @@ class TestLintRunNotes(unittest.TestCase):
         self.assertEqual(["unsupported-schema"], _errors(result))
         self.assertEqual(1, code)
 
+    def test_unclosed_schema_3_frontmatter_is_unsupported_schema(self) -> None:
+        result, code = _lint_named(VALID_NAME, "---\nmarker: run-note\nschema: 3\n")
+        self.assertEqual("unsupported", result.classification)
+        self.assertEqual(["unsupported-schema"], _errors(result))
+        self.assertEqual(1, code)
+
+    def test_markdown_link_destinations_reject_non_http_schemes(self) -> None:
+        for url in ("data:text/plain,hello", "mailto:hello@example.com", "custom:payload"):
+            with self.subTest(url=url):
+                result, code = _lint_v2(urls=[f"[source]({url})"])
+                self.assertEqual(["non-http-url"], _errors(result))
+                self.assertEqual(1, code)
+        result, code = _lint_v2(urls=["[source](https://example.com)"])
+        self.assertEqual([], _errors(result))
+        self.assertEqual(0, code)
+
+    def test_unknown_label_without_space_is_invalid_label(self) -> None:
+        result, code = _lint_v2(findings=["- nope:claim"])
+        self.assertEqual(["invalid-label"], _errors(result))
+        self.assertEqual(1, code)
+
     def test_legacy_bare_label_warns_and_exits_zero(self) -> None:
         result, code = _lint_fixture("legacy-bare-label.md")
         self.assertEqual(0, code)

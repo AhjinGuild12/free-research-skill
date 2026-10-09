@@ -112,9 +112,10 @@ PARALLEL_EXTRACTS_BALANCED = 2
 COPY_CHECK_ENV = "FREE_RESEARCH_CHECK_COPIES"
 
 _PAIR_RE = re.compile(
-    r"\b(Exa|Firecrawl|Brave)\b[^≤\n]{0,160}?≤\s*(\d+)",
+    r"\b(Exa|Firecrawl|Brave)\b[^≤\n]{0,160}?(?:≤|\bat most\b)\s*(\d+)",
+    re.IGNORECASE,
 )
-_BARE_CEILING_RE = re.compile(r"≤\s*(\d+)")
+_BARE_CEILING_RE = re.compile(r"(?:≤|\bat most\b)\s*(\d+)", re.IGNORECASE)
 _MODE_FLAG_RE = re.compile(r"--(free|balanced|deep)\b")
 _ROW_MODE_RE = re.compile(r"\*\*(free|balanced|deep)\*\*", re.IGNORECASE)
 _BLOCK_TOOL_RE = re.compile(r"^\d+\.\s+\*\*(Exa|Firecrawl|Brave)\*\*")
@@ -285,6 +286,24 @@ def _file_inventory(root: Path) -> dict[str, str]:
 
 
 class TestSkillContract(unittest.TestCase):
+    def test_at_most_ceilings_cannot_evade_contract(self) -> None:
+        text = TOOL_ROUTING.read_text(encoding="utf-8")
+        expected = _modes_table(SKILL_MD.read_text(encoding="utf-8"))
+        for original, replacement, statement in (
+            ("Brave ≤1", "Brave at most 9", ("balanced", "Brave", 9)),
+            ("Exa ≤4", "Exa at most 9", ("deep", "Exa", 9)),
+        ):
+            with self.subTest(replacement=replacement):
+                self.assertIn(original, text)
+                parsed = _ceiling_statements(text.replace(original, replacement))
+                self.assertIn(statement, parsed)
+                mode, tool, count = statement
+                self.assertNotEqual(expected[mode][tool], count)
+        self.assertEqual(
+            [("deep", "Exa", 9)],
+            _ceiling_statements("3. **Exa**: `--deep` at most 9 search calls."),
+        )
+
     def test_paid_ceilings_match_modes_table(self) -> None:
         expected = _modes_table(SKILL_MD.read_text(encoding="utf-8"))
         problems: list[str] = []
