@@ -70,6 +70,7 @@ class TestPluginContract(unittest.TestCase):
 
     def test_versions_match_across_manifests(self) -> None:
         version = _skill_version()
+        self.assertEqual("1.2.1", version)
         self.assertEqual(version, _json(ROOT / ".claude-plugin" / "plugin.json")["version"])
         self.assertEqual(version, _json(ROOT / ".grok-plugin" / "plugin.json")["version"])
         claude_plugins = _json(ROOT / ".claude-plugin" / "marketplace.json")["plugins"]

@@ -1,14 +1,15 @@
-# Task Plan: Reusable run notes and a lean free-research spec
+# Task Plan: free-research on Claude Code, strengthened with treg
 
-Full plan: `docs/plans/2026-10-09-1122-feat-reusable-notes-lean-spec-plan.md`
+Full plan: `docs/plans/2026-10-17-1846-feat-treg-free-research-plan.md`
 
 Backend Tasks
 
-- B1: Contract tests that pin today's limits, sections, and traces (U1)
-- B2: Slim SKILL.md and add the verification-tail reference (U2)
-- B3: Version-2 run notes, key lookup, and the vault setting (U3)
-- B4: Read-only run-note linter (U4)
-- B5: README, version bump, Grok config, and copy-out (U5)
+- B1: Contract tests pin the treg limits, `$0` allowlist, never-use list, and Claude Code copy (U1)
+- B2: Host-neutral SKILL.md, treg as the free web layer (U2)
+- B3: treg as the first paid family with intent routing and dollar caps (U3)
+- B4: Verification tail rules and eval traces for the new paths (U4)
+- B5: README, version bump, manifests, FOR_Jan doc (U5)
+- B6: Copy-out to Claude Code, Grok, and the pack; smoke runs (U6)
 
 Frontend Tasks
 
