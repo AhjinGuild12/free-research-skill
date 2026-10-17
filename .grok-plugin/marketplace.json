@@ -8,8 +8,8 @@
   "plugins": [
     {
       "name": "free-research",
-      "description": "Free-first multi-source research. last30days community pulse plus TinyFish search/fetch, with a remaining-gap gate before Exa, Brave, and Firecrawl.",
-      "version": "1.1.0",
+      "description": "Free-first research for Claude Code and Grok. last30days plus TinyFish MCP or treg; remaining gaps gate paid treg, Exa, Firecrawl, then Brave.",
+      "version": "1.2.0",
       "category": "productivity",
       "source": {
         "source": "url",

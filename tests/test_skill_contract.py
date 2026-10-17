@@ -17,7 +17,22 @@ EVAL_SCENARIOS = SKILL_DIR / "references" / "eval-scenarios.md"
 VERIFICATION_TAIL = SKILL_DIR / "references" / "verification-tail.md"
 VAULT_NOTES = SKILL_DIR / "references" / "vault-notes.md"
 
-TOOLS = ("Exa", "Firecrawl", "Brave")
+TOOLS = ("treg", "Exa", "Firecrawl", "Brave")
+TREG_FREE = {
+    "tinyfish.web.search", "tinyfish.web.fetch",
+    "tinyfish.web.search.news", "tinyfish.web.search.publications",
+}
+TREG_NEVER = {
+    "call_media", "my_tools", "catalog_request", "feedback",
+    "tinyfish.web.agent.run", "treg.web.search", "treg.web.extract",
+    "treg.companies.enrich", "treg.x.search.posts",
+}
+TREG_PAID = {
+    "scrapecreators.reddit.search.posts", "anyapi.reddit.search",
+    "anyapi.x.search.posts", "crawl4ai.x.search.posts",
+    "spyfu.google.domain.competitors",
+    "scrapecreators.x.v1-youtube-video-transcript", "crawl4ai.youtube.video.captions",
+}
 MODES = ("free", "balanced", "deep")
 REPORT_SECTIONS = (
     "Executive Summary",
@@ -34,6 +49,7 @@ CLOSING_LINE = "your agent is only as good as the worst source it believed."
 TRACE_IDS = (
     tuple(f"T{number}" for number in range(1, 18))
     + ("T18a", "T18b", "T19", "T20", "T21", "T22", "T23", "L1", "L2")
+    + tuple(f"T{number}" for number in range(24, 30))
 )
 KEY_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+){1,3}$")
 KEY_MAX_BYTES = 48
@@ -128,13 +144,13 @@ COPY_PARITY_FILES = (
 )
 
 _PAIR_RE = re.compile(
-    r"\b(Exa|Firecrawl|Brave)\b[^≤\n]{0,160}?(?:≤|\bat most\b)\s*(\d+)",
+    r"\b(treg|Exa|Firecrawl|Brave)\b[^≤\n]{0,160}?(?:≤|\bat most\b)\s*(\d+)",
     re.IGNORECASE,
 )
 _BARE_CEILING_RE = re.compile(r"(?:≤|\bat most\b)\s*(\d+)", re.IGNORECASE)
 _MODE_FLAG_RE = re.compile(r"--(free|balanced|deep)\b")
 _ROW_MODE_RE = re.compile(r"\*\*(free|balanced|deep)\*\*", re.IGNORECASE)
-_BLOCK_TOOL_RE = re.compile(r"^\d+\.\s+\*\*(Exa|Firecrawl|Brave)\*\*")
+_BLOCK_TOOL_RE = re.compile(r"^\d+\.\s+\*\*(treg|Exa|Firecrawl|Brave)\*\*")
 _TRACE_HEADING_RE = re.compile(r"^#{2,3} ((?:T\d+[a-z]?|L\d+))\.", re.MULTILINE)
 _REFERENCE_RE = re.compile(r"references/[A-Za-z0-9_.-]+\.md")
 _PARALLEL_CAP_RE = re.compile(
@@ -272,6 +288,25 @@ def _step6_template(text: str) -> str:
     return text[body_start:body_end]
 
 
+def _treg_limits(text: str) -> dict[str, tuple[int, str, str]]:
+    limits = {}
+    for row in _modes_table_rows(text):
+        mode = _ROW_MODE_RE.search(row).group(1).lower()
+        match = re.search(
+            r"treg (?:≤|at most )\s*(\d+) calls / \$(\d+\.\d+) total / \$(\d+\.\d+) per call",
+            row,
+        )
+        if not match:
+            raise AssertionError(f"Modes table {mode}: missing treg limits")
+        limits[mode] = (int(match[1]), match[2], match[3])
+    return limits
+
+
+def _treg_callable_ids(text: str, heading: str, end: str) -> set[str]:
+    block = text.split(heading, 1)[1].split(end, 1)[0]
+    return set(re.findall(r"`([a-z][a-z0-9_-]*(?:\.[a-z0-9_-]+)+)`", block))
+
+
 def _parse_count(token: str) -> int:
     lowered = token.lower()
     if lowered.isdigit():
@@ -302,6 +337,56 @@ def _file_inventory(root: Path) -> dict[str, str]:
 
 
 class TestSkillContract(unittest.TestCase):
+    def test_treg_limits_and_readme_parity(self) -> None:
+        expected = {
+            "free": (0, "0.00", "0.00"),
+            "balanced": (4, "0.05", "0.02"),
+            "deep": (10, "0.25", "0.02"),
+        }
+        for path in (SKILL_MD, README_MD):
+            text = path.read_text(encoding="utf-8")
+            self.assertEqual(expected, _treg_limits(text), str(path))
+            mutated = text.replace("treg ≤4 calls", "treg at most 9 calls")
+            self.assertEqual(9, _treg_limits(mutated)["balanced"][0])
+            self.assertNotEqual(expected, _treg_limits(mutated))
+        self.assertEqual(
+            [("balanced", "treg", 9)],
+            _ceiling_statements("3. **treg**: `--balanced` at most 9 calls."),
+        )
+
+    def test_treg_free_allowlist_and_host_order(self) -> None:
+        text = SKILL_MD.read_text(encoding="utf-8")
+        self.assertIn("### treg free allowlist", text)
+        self.assertEqual(TREG_FREE, _treg_callable_ids(text, "### treg free allowlist", "### 3a."))
+        self.assertIn("TinyFish MCP, then TinyFish via treg, then host web tools", text)
+        self.assertNotIn("~/.grok/", text)
+        self.assertNotIn("/mcps", text)
+        for phrase in ("usd_per_call", "catalog_search", "cost_usd", "stop treg use for the rest of the run", "TinyFish via treg (free)"):
+            self.assertIn(phrase, text)
+
+    def test_treg_read_only_and_fixed_paid_routes(self) -> None:
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        routing = TOOL_ROUTING.read_text(encoding="utf-8")
+        boundary = skill.split("treg MCP tool boundary: only ", 1)[1].split(".", 1)[0]
+        allowed_tools = {"catalog_search", "call", "balance", "review"}
+        self.assertEqual(allowed_tools, set(re.findall(r"`([^`]+)`", boundary)))
+        for name in TREG_NEVER:
+            mutated = boundary.replace("`review`", f"`{name}`")
+            self.assertNotEqual(allowed_tools, set(re.findall(r"`([^`]+)`", mutated)))
+        for text in (skill, routing):
+            self.assertIn("Never-use:", text)
+            never = text.split("Never-use:", 1)[1].split("\n\n", 1)[0]
+            for name in TREG_NEVER:
+                self.assertIn(f"`{name}`", never)
+            self.assertIn("`catalog_get`", text)
+        self.assertIn("## treg paid allowlist", routing)
+        allowed = _treg_callable_ids(routing, "## treg paid allowlist", "## treg ops card")
+        self.assertEqual(TREG_PAID, allowed)
+        self.assertFalse(allowed & TREG_NEVER)
+        for forbidden in ("tinyfish.web.agent.run", "treg.web.extract"):
+            mutated = routing.replace("`anyapi.reddit.search`", f"`{forbidden}`")
+            self.assertNotEqual(TREG_PAID, _treg_callable_ids(mutated, "## treg paid allowlist", "## treg ops card"))
+
     def test_at_most_ceilings_cannot_evade_contract(self) -> None:
         text = TOOL_ROUTING.read_text(encoding="utf-8")
         expected = _modes_table(SKILL_MD.read_text(encoding="utf-8"))
@@ -327,7 +412,7 @@ class TestSkillContract(unittest.TestCase):
             relative = path.relative_to(ROOT).as_posix()
             statements = _ceiling_statements(path.read_text(encoding="utf-8"))
             if not statements:
-                problems.append(f"{relative}: no Exa, Firecrawl, or Brave ceiling statements parsed")
+                problems.append(f"{relative}: no paid ceiling statements parsed")
             for mode, tool, count in statements:
                 if mode not in expected or tool not in expected[mode]:
                     problems.append(f"{relative}: unresolved {mode} {tool} ≤{count}")
@@ -517,16 +602,38 @@ class TestSkillContract(unittest.TestCase):
 
     def test_trace_ids_appear_once(self) -> None:
         counts: dict[str, int] = {trace_id: 0 for trace_id in TRACE_IDS}
-        for trace_id in _TRACE_HEADING_RE.findall(EVAL_SCENARIOS.read_text(encoding="utf-8")):
-            if trace_id in counts:
-                counts[trace_id] += 1
+        references = list((SKILL_DIR / "references").glob("*.md"))
+        combined = "\n".join(path.read_text(encoding="utf-8") for path in references)
+        for trace_id in _TRACE_HEADING_RE.findall(combined):
+            self.assertIn(trace_id, counts, f"unregistered trace ID: {trace_id}")
+            counts[trace_id] += 1
+        for number in range(24, 30):
+            trace_id = f"T{number}"
+            self.assertEqual(1, len(re.findall(rf"\b{trace_id}\b", combined)), trace_id)
         problems = [f"{trace_id} appears {count} times" for trace_id, count in counts.items() if count != 1]
         self.assertEqual([], problems, "; ".join(problems))
+
+    def test_treg_evidence_and_spend_boundaries(self) -> None:
+        tail = VERIFICATION_TAIL.read_text(encoding="utf-8")
+        for phrase in ("treg full-page body", "thread or caption body", "treg snippet or social search hit", "url-ledger"):
+            self.assertIn(phrase, tail)
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        self.assertIn("No treg paid endpoint or `balance` after the gate.", skill)
+        routing = TOOL_ROUTING.read_text(encoding="utf-8")
+        for phrase in (
+            "Do not make a call to discover price.",
+            "A post-call check cannot undo a charge.",
+            "Count every paid-endpoint attempt, including failures",
+            "A failed call with no cost retains its reservation.",
+            "Do not treat a title-only Reddit result as a usable body.",
+        ):
+            self.assertIn(phrase, routing)
 
     @unittest.skipUnless(os.environ.get(COPY_CHECK_ENV) == "1", "set FREE_RESEARCH_CHECK_COPIES=1 to compare copies")
     def test_repo_live_and_pack_copies_match(self) -> None:
         copies = {
             "repo": SKILL_DIR,
+            "claude": Path.home() / ".claude" / "skills" / "free-research",
             "live": Path.home() / ".grok" / "skills" / "free-research",
             "pack": Path.home() / "Projects" / "skill-pack" / "grok" / "free-research",
         }
@@ -546,7 +653,7 @@ class TestSkillContract(unittest.TestCase):
                 continue
             digests = set(present.values())
             if len(digests) != 1:
-                problems.append(f"{relative}: sha256 differs across repo, live, and pack")
+                problems.append(f"{relative}: sha256 differs across {', '.join(inventories)}")
         self.assertEqual([], problems, "\n".join(problems))
 
 
