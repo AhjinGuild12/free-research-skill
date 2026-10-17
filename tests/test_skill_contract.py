@@ -629,6 +629,87 @@ class TestSkillContract(unittest.TestCase):
         ):
             self.assertIn(phrase, routing)
 
+    def test_treg_paid_response_trimming(self) -> None:
+        routing = TOOL_ROUTING.read_text(encoding="utf-8")
+        card = routing.split("## treg ops card", 1)[1].split("## Firecrawl ops card", 1)[0]
+
+        def assert_trim_contract(text: str) -> None:
+            for phrase in (
+                "MCP `call` has separate `body`, `query`, and `headers` slots.",
+                "For `anyapi.*`, send `max_items` and `fields` in the `query` slot, never in `body`.",
+                "Put the request itself in `body`.",
+                "Size the rows and fields to the remaining gap.",
+                'body `{"query": "...", "limit": 5}`',
+                'query `{"max_items": 5, "fields": "url,text,createdUtc,authorUsername"}`',
+                "Body `limit` is advisory.",
+                "`max_items` in `body` returns HTTP `400` `invalid_input`.",
+                "Trimming never changes the charge.",
+                "Do not use `summary` or `jq`.",
+                "For other providers, request the smallest documented page and extract only gate-relevant fields.",
+                "Do not invent trim parameters.",
+            ):
+                self.assertIn(phrase, text)
+
+        assert_trim_contract(card)
+        mutated = card.replace(
+            "`max_items` and `fields` in the `query` slot, never in `body`",
+            "`max_items` and `fields` in the `body` slot",
+        ).replace('query `{"max_items": 5,', 'body `{"max_items": 5,')
+        self.assertNotEqual(card, mutated)
+        with self.assertRaises(AssertionError):
+            assert_trim_contract(mutated)
+
+    def test_treg_cap_headers_and_rejections(self) -> None:
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        routing = TOOL_ROUTING.read_text(encoding="utf-8")
+        card = routing.split("## treg ops card", 1)[1].split("## Firecrawl ops card", 1)[0]
+        free = skill.split("### treg free allowlist", 1)[1].split("### 3a.", 1)[0]
+        self.assertIn("X-Treg-Route-Max-Cost", skill)
+        for phrase in (
+            "Send `X-Treg-Route-Max-Cost: <usd>` in the `headers` slot on every paid `call`.",
+            "Set it to the lesser of the Modes-table per-call ceiling and the remaining invocation dollar budget.",
+            "The header supplements, never replaces, client-side reservation and post-call `cost_usd` checks.",
+            "HTTP `402` with `detail.error` `route_max_cost` is a cap or price rejection with nothing charged.",
+            "The MCP `hint` wrongly says the balance is short.",
+            "It is not a balance failure and still counts as an attempt.",
+            "Skip that endpoint, report why, and continue the ladder.",
+        ):
+            self.assertIn(phrase, card)
+        self.assertIn("Send `X-Treg-Route-Max-Cost: 0` in the `headers` slot on every free-allowlist `call`.", free)
+        self.assertIn("HTTP `402` with `route_max_cost` means the endpoint is not free now: skip it and use host web.", free)
+
+    def test_treg_free_calls_stay_lean(self) -> None:
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        free = skill.split("### treg free allowlist", 1)[1].split("### 3a.", 1)[0]
+        self.assertIn("treg search never sends `fetch`; it attaches page bodies to every result.", free)
+        self.assertIn("treg fetch sends only the selected URLs and leaves `links`, `image_links`, and `page_metadata` off.", free)
+
+    def test_treg_routed_reason_and_retired_claims(self) -> None:
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        routing = TOOL_ROUTING.read_text(encoding="utf-8")
+        scenarios = EVAL_SCENARIOS.read_text(encoding="utf-8")
+        reason = (
+            "Routed endpoints drop trim params, return the rows twice (`output` plus `raw`), "
+            "and can show a free catalog headline while misses bill."
+        )
+        for text in (skill, routing):
+            never = text.split("Never-use:", 1)[1].split("\n\n", 1)[0]
+            self.assertIn(reason, never)
+        cost_row = next(line for line in routing.splitlines() if line.startswith("| treg fixed paid allowlist |"))
+        self.assertIn(reason, cost_row)
+        t29 = scenarios.split("## T29.", 1)[1].split("\n## ", 1)[0]
+        required = next(line for line in t29.splitlines() if line.startswith("- **Required:**"))
+        self.assertIn(reason, required)
+        self.assertIn("A request to use a routed endpoint is also rejected.", required)
+        for text in (skill, routing, scenarios):
+            for retired in (
+                "no pre-call price", "lack pre-call prices",
+                "Never guess a max-cost parameter", "server-side max-cost option",
+            ):
+                self.assertNotIn(retired.lower(), text.lower())
+        t26 = scenarios.split("## T26.", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("continue the free allowlist with pre-call price checks.", t26)
+
     @unittest.skipUnless(os.environ.get(COPY_CHECK_ENV) == "1", "set FREE_RESEARCH_CHECK_COPIES=1 to compare copies")
     def test_repo_live_and_pack_copies_match(self) -> None:
         copies = {
