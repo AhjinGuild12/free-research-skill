@@ -56,8 +56,8 @@ SKILL.md's paid path owns the connected-MCP defect rule, including both exceptio
 | treg TinyFish free allowlist | Discovery / reading | Catalog price zero, no key; verify result cost per SKILL.md Step 3 |
 | treg fixed paid allowlist | Intent gaps | Catalog-priced, bounded by SKILL.md Modes table. Routed endpoints drop trim params, return the rows twice (`output` plus `raw`), and can show a free catalog headline while misses bill. |
 | treg `balance` / `review` | Preflight / invited rating | No research endpoint call; no paid-call quota consumed |
-| `tinyfish.web.agent.run` | Browser agent | $8 observed - never-use |
-| `akta.x.website-traffic` | Traffic | $0.075 observed - above the per-call ceiling, not allowlisted |
+| `tinyfish.web.agent.run` | Browser agent | USD 8 observed - never-use |
+| `akta.x.website-traffic` | Traffic | USD 0.075 observed - above the per-call ceiling, not allowlisted |
 | TinyFish `run_web_automation` | Acting | **Paid — never for research reads, including `--free`** |
 | Firecrawl CLI `search` / `scrape` / `interact` | Paid web | Paid — balanced/deep only, if authed. Counts toward leftover-ops |
 | Firecrawl `--status` / `search-feedback` | Paid web | `--status` is context, not an leftover-op. Feedback does not count |

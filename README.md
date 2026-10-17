@@ -99,7 +99,7 @@ Tools Used after a real escalate:
 
 If the free layer already closed the gaps, the report says treg paid was skipped, makes no `balance` call, and does not call Exa, Firecrawl, or Brave.
 
-When Claude Code uses treg's free layer, Tools Used names each endpoint under `TinyFish via treg (free)` with cost $0 or a labeled catalog estimate, plus the treg spend total. A paid person gap might use `anyapi.x.search.posts` after a catalog price check; it lists the actual cost and stops the ladder if a usable body closes the gap. Search snippets remain leads.
+When Claude Code uses treg's free layer, Tools Used names each endpoint under `TinyFish via treg (free)` with cost USD 0 or a labeled catalog estimate, plus the treg spend total. A paid person gap might use `anyapi.x.search.posts` after a catalog price check; it lists the actual cost and stops the ladder if a usable body closes the gap. Search snippets remain leads.
 
 ### Force free, even when coverage is thin
 
@@ -113,9 +113,9 @@ Never calls treg paid endpoints, `balance`, Exa, Firecrawl, `firecrawl --status`
 
 | Mode | Tools | Credits |
 |------|--------|---------|
-| **free** (default) | last30days + TinyFish MCP or treg free allowlist, then host web | Zero paid; treg ≤0 calls / $0.00 total / $0.00 per call (paid endpoints) |
-| **balanced** | free layer + sequential paid tools on remaining gaps (treg ≤4 calls / $0.05 total / $0.02 per call; Exa ≤2, Firecrawl ≤3 leftover ops, Brave ≤1) | Minimal paid |
-| **deep** | same order; treg ≤10 calls / $0.25 total / $0.02 per call; Exa ≤4, Firecrawl ≤6 leftover ops, Brave ≤2; stop when remaining gaps empty | Paid, capped |
+| **free** (default) | last30days + TinyFish MCP or treg free allowlist, then host web | Zero paid; treg ≤0 calls / USD 0.00 total / USD 0.00 per call (paid endpoints) |
+| **balanced** | free layer + sequential paid tools on remaining gaps (treg ≤4 calls / USD 0.05 total / USD 0.02 per call; Exa ≤2, Firecrawl ≤3 leftover ops, Brave ≤1) | Minimal paid |
+| **deep** | same order; treg ≤10 calls / USD 0.25 total / USD 0.02 per call; Exa ≤4, Firecrawl ≤6 leftover ops, Brave ≤2; stop when remaining gaps empty | Paid, capped |
 
 This table mirrors [skills/free-research/SKILL.md](skills/free-research/SKILL.md), the single owner of treg, Exa, Firecrawl, and Brave ceilings. treg limits count paid-endpoint attempts, including failures; free-allowlist calls do not consume that quota. [skills/free-research/references/tool-routing.md](skills/free-research/references/tool-routing.md) owns the `parallel-cli` caps.
 

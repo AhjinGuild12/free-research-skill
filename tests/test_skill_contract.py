@@ -293,7 +293,7 @@ def _treg_limits(text: str) -> dict[str, tuple[int, str, str]]:
     for row in _modes_table_rows(text):
         mode = _ROW_MODE_RE.search(row).group(1).lower()
         match = re.search(
-            r"treg (?:≤|at most )\s*(\d+) calls / \$(\d+\.\d+) total / \$(\d+\.\d+) per call",
+            r"treg (?:≤|at most )\s*(\d+) calls / USD (\d+\.\d+) total / USD (\d+\.\d+) per call",
             row,
         )
         if not match:
@@ -337,6 +337,25 @@ def _file_inventory(root: Path) -> dict[str, str]:
 
 
 class TestSkillContract(unittest.TestCase):
+    def test_no_currency_argument_placeholders(self) -> None:
+        def assert_no_placeholders(text: str) -> None:
+            self.assertNotRegex(text, r"\$[0-9]")
+
+        for path in (SKILL_MD, README_MD, *sorted((SKILL_DIR / "references").rglob("*.md"))):
+            with self.subTest(path=str(path)):
+                assert_no_placeholders(path.read_text(encoding="utf-8"))
+        mutated = SKILL_MD.read_text(encoding="utf-8") + "\nCost $0.05\n"
+        with self.assertRaises(AssertionError):
+            assert_no_placeholders(mutated)
+
+    def test_treg_search_query_shape(self) -> None:
+        text = SKILL_MD.read_text(encoding="utf-8")
+        free = text.split("### treg free allowlist", 1)[1].split("### 3a.", 1)[0]
+        self.assertIn("These search endpoints use GET with `query` and `domain_type` in the MCP `call` `query` slot.", free)
+        self.assertIn("Use `domain_type=web` for general search, `domain_type=news` for news search, and `domain_type=research_paper` for publications search.", free)
+        fallback = text.split("**Fallback:**", 1)[1].split("\n\n", 1)[0]
+        self.assertIn("The news endpoint can return zero results on a niche topic, so it never replaces the general `tinyfish.web.search` web angle.", fallback)
+
     def test_treg_limits_and_readme_parity(self) -> None:
         expected = {
             "free": (0, "0.00", "0.00"),

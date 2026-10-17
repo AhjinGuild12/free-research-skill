@@ -283,7 +283,7 @@ Do not spend credits on interact for these smokes.
 - **Forbidden:** `catalog_get`; `balance`; paid endpoints; agent runs; Exa, Firecrawl, Brave, and `parallel-cli`. No Grok path or Grok auth command is needed.
 - **Gate / evidence:** fetched usable bodies enter the url-ledger. Emit the gap list, return the gate without paid calls, then apply the verification tail. Snippets stay leads. Strong primary bodies may confirm; missing origins do not open paid tools.
 - **Files / feedback:** optional vault note only through its existing rules; no `.firecrawl/`. No uninvited review.
-- **Tools Used:** last30days one line; TinyFish via treg (free), each endpoint that ran and cost $0; treg spend total $0; host tools only if used. Empty gaps: treg paid skipped, remaining-gaps empty. Omit Deep Insights and paid-used lines.
+- **Tools Used:** last30days one line; TinyFish via treg (free), each endpoint that ran and cost USD 0; treg spend total USD 0; host tools only if used. Empty gaps: treg paid skipped, remaining-gaps empty. Omit Deep Insights and paid-used lines.
 - **Grok control:** with TinyFish MCP connected and working, it serves search/fetch first. treg is fallback, not an extra search lane.
 
 ## T25. treg disconnected or empty
@@ -303,7 +303,7 @@ Do not spend credits on interact for these smokes.
 - **Missing-cost variant:** omitted result cost is not a nonzero charge. Use the zero catalog estimate, explicitly labeled estimated; continue the free allowlist with pre-call price checks.
 - **Repricing variant:** nonzero or missing catalog price before a free call means no call, host fallback, and a reason under Tools Used.
 - **Files / feedback:** optional vault note only; no `.firecrawl/`. No review unless the completed result invited one.
-- **Tools Used:** endpoint, actual cost $0.001, treg spend total $0.001, charge discrepancy and treg stop; host free fallback. No paid endpoint listed as used. Do not claim this run spent zero. Omit Deep Insights.
+- **Tools Used:** endpoint, actual cost USD 0.001, treg spend total USD 0.001, charge discrepancy and treg stop; host free fallback. No paid endpoint listed as used. Do not claim this run spent zero. Omit Deep Insights.
 
 ## T27. Balanced person gap closes through treg
 
