@@ -50,7 +50,7 @@ CLOSING_LINE = "your agent is only as good as the worst source it believed."
 TRACE_IDS = (
     tuple(f"T{number}" for number in range(1, 18))
     + ("T18a", "T18b", "T19", "T20", "T21", "T22", "T23", "L1", "L2")
-    + tuple(f"T{number}" for number in range(24, 31))
+    + tuple(f"T{number}" for number in range(24, 32))
 )
 KEY_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+){1,3}$")
 KEY_MAX_BYTES = 48
@@ -384,10 +384,57 @@ class TestSkillContract(unittest.TestCase):
     def test_treg_search_query_shape(self) -> None:
         text = SKILL_MD.read_text(encoding="utf-8")
         free = text.split("### treg free allowlist", 1)[1].split("### 3a.", 1)[0]
-        self.assertIn("These search endpoints use GET with `query` and `domain_type` in the MCP `call` `query` slot.", free)
-        self.assertIn("Use `domain_type=web` for general search, `domain_type=news` for news search, and `domain_type=research_paper` for publications search.", free)
+        self.assertIn('`tinyfish.web.search`: GET with MCP `call` query `{"query": "...", "domain_type": "web"}`', free)
+        self.assertIn("use `domain_type=news` for news search and `domain_type=research_paper` for publications search.", free)
         fallback = text.split("**Fallback:**", 1)[1].split("\n\n", 1)[0]
         self.assertIn("The news endpoint can return zero results on a niche topic, so it never replaces the general `tinyfish.web.search` web angle.", fallback)
+
+    def test_treg_fetch_post_body_has_one_owner(self) -> None:
+        shape = '`tinyfish.web.fetch`: POST with MCP `call` body `{"urls": ["https://..."], "format": "markdown", "links": false}`.'
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        free = skill.split("### treg free allowlist", 1)[1].split("### 3a.", 1)[0]
+        self.assertIn(shape, free)
+        combined = skill + "\n" + "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in (SKILL_DIR / "references").glob("*.md")
+        )
+        self.assertEqual(1, combined.count(shape))
+
+    def test_treg_paid_routes_by_facet_regardless_of_intent(self) -> None:
+        routing = TOOL_ROUTING.read_text(encoding="utf-8")
+        allowlist = routing.split("## treg paid allowlist", 1)[1].split("## treg ops card", 1)[0]
+        rows = [
+            [cell.strip() for cell in line.strip("|").split("|")]
+            for line in allowlist.splitlines() if line.startswith("|")
+        ]
+        self.assertEqual("Gap / facet type", rows[0][0])
+        expected = {
+            "Reddit posts or threads": {"scrapecreators.reddit.search.posts", "anyapi.reddit.search"},
+            "X posts or threads": {"anyapi.x.search.posts", "crawl4ai.x.search.posts"},
+            "Domain/SERP competitors": {"spyfu.google.domain.competitors"},
+            "YouTube captions for a discovered video": {
+                "scrapecreators.x.v1-youtube-video-transcript", "crawl4ai.youtube.video.captions",
+            },
+            "General page extraction": set(),
+        }
+        actual = {row[0]: set(re.findall(r"`([^`]+)`", row[1])) for row in rows[2:]}
+        self.assertEqual(expected, actual)
+        self.assertIn("Route by the open gap/facet, regardless of topic intent.", allowlist)
+        self.assertIn("Topic intent only sets the default order of facets; it never removes a facet's endpoint.", allowlist)
+        self.assertIn("A Reddit gap uses the Reddit search candidates even when intent is `news`.", allowlist)
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        treg = skill.split("3. **treg**", 1)[1].split("\n4.", 1)[0]
+        self.assertIn("Choose treg by the open facet under the routing rules owned by `references/tool-routing.md`.", treg)
+        self.assertFalse(TREG_PAID & set(re.findall(r"`([^`]+)`", treg)))
+
+    def test_news_reddit_gap_runs_treg_before_later_families(self) -> None:
+        trace = EVAL_SCENARIOS.read_text(encoding="utf-8").split("## T31.", 1)[1].split("\n## ", 1)[0]
+        for phrase in (
+            "--balanced", "news intent", "on-topic Reddit posts about the launch",
+            "anyapi.reddit.search", "Modes-table limits", "before Exa or Firecrawl",
+            "remaining-gaps: none", "On the next family turn",
+        ):
+            self.assertIn(phrase, trace)
 
     def test_treg_limits_and_readme_parity(self) -> None:
         expected = {

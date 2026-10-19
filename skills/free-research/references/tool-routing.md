@@ -27,7 +27,7 @@ free layer complete
   → re-emit remaining gaps; empty? synthesize
   → probe MCP list (treg / Exa / Brave / Firecrawl: connected | disconnected)
   → treg balance once, only before eligible paid work
-  → treg explicit paid endpoint by intent, within Modes-table limits
+  → treg explicit paid endpoint by open facet, within Modes-table limits
   → re-emit remaining gaps; empty? synthesize
   → Exa (if connected) on facets that still lack URLs
   → re-emit remaining gaps; empty? synthesize
@@ -54,7 +54,7 @@ SKILL.md's paid path owns the connected-MCP defect rule, including both exceptio
 | TinyFish `search` | Discovery | Free |
 | TinyFish `fetch_content` | Reading | Free (≤10 URLs/call) |
 | treg TinyFish free allowlist | Discovery / reading | Catalog price zero, no key; verify result cost per SKILL.md Step 3 |
-| treg fixed paid allowlist | Intent gaps | Catalog-priced, bounded by SKILL.md Modes table. Routed endpoints drop trim params, return the rows twice (`output` plus `raw`), and can show a free catalog headline while misses bill. |
+| treg fixed paid allowlist | Facet gaps | Catalog-priced, bounded by SKILL.md Modes table. Routed endpoints drop trim params, return the rows twice (`output` plus `raw`), and can show a free catalog headline while misses bill. |
 | treg `balance` / `review` | Preflight / invited rating | No research endpoint call; no paid-call quota consumed |
 | `tinyfish.web.agent.run` | Browser agent | USD 8 observed - never-use |
 | `akta.x.website-traffic` | Traffic | USD 0.075 observed - above the per-call ceiling, not allowlisted |
@@ -102,14 +102,15 @@ Do not probe on `--free`. SKILL.md's Step 4 gate owns that ban.
 
 Candidate prices below are planning observations, not authorization. Confirm exact IDs and `usd_per_call` through `catalog_search` before calling. Choose only an eligible route for a named remaining gap.
 
-| Intent / artifact | Explicit endpoint candidates | Observed USD/call |
+Route by the open gap/facet, regardless of topic intent. Topic intent only sets the default order of facets; it never removes a facet's endpoint. A Reddit gap uses the Reddit search candidates even when intent is `news`.
+
+| Gap / facet type | Explicit endpoint candidates | Observed USD/call |
 | --- | --- | --- |
-| recommendations | `scrapecreators.reddit.search.posts` or `anyapi.reddit.search` | 0.0019 / 0.0012 |
-| person | `anyapi.x.search.posts` or `crawl4ai.x.search.posts` | 0.00075 / 0.00065 |
-| competitor | `spyfu.google.domain.competitors` | 0.0002 |
-| news | Same X search candidates as person, after free TinyFish news search | Confirm catalog |
-| discovered YouTube captions | `scrapecreators.x.v1-youtube-video-transcript` or `crawl4ai.youtube.video.captions` | 0.00188 / 0.00165 |
-| general | No confirmed paid extract route; free-fetch leftover URLs, then continue the ladder | No paid call |
+| Reddit posts or threads | `scrapecreators.reddit.search.posts` or `anyapi.reddit.search` | 0.0019 / 0.0012 |
+| X posts or threads | `anyapi.x.search.posts` or `crawl4ai.x.search.posts` | 0.00075 / 0.00065 |
+| Domain/SERP competitors | `spyfu.google.domain.competitors` | 0.0002 |
+| YouTube captions for a discovered video | `scrapecreators.x.v1-youtube-video-transcript` or `crawl4ai.youtube.video.captions` | 0.00188 / 0.00165 |
+| General page extraction | No confirmed paid extract route; free-fetch leftover URLs, then continue the ladder | No paid call |
 
 Do not add company identify or an unlisted extract endpoint during a run. Caption candidates apply only to discovered videos with missing load-bearing captions after Step 3c; its video cap still applies. A title, snippet, social search hit, or domain-competitor list is a lead. Free-fetch discovered URLs for their bodies before re-gating. Do not treat a title-only Reddit result as a usable body.
 
