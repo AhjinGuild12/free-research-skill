@@ -112,6 +112,8 @@ Empty list closes the gate, including `--deep` and including connected treg, Exa
 
 When no family in the paid order remains eligible, because each one has run, failed, been skipped as disconnected, or hit its ceiling, the gate returns. Facets still open are reported as unresolved under Comparison / Gaps. They are not marked closed. No extra call is made.
 
+Never end a run on a status message. A paid family that is denied, disconnected, unauthenticated, out of ceiling, or returns nothing counts as "returned no URLs": skip it and continue down the order in the same turn without waiting. Once the order is exhausted, mark the gate returned and continue to the verification tail and Step 6, with remaining gaps unresolved under Comparison / Gaps. Progress narration between tool calls is allowed; the Step 6 report, including Tools Used and the closing line, is the final message. Only then is the run complete.
+
 `--free` never escalates - no treg paid endpoint or `balance`, no Exa, Brave, Firecrawl, `firecrawl --status`, `parallel-cli`, or Parallel Task API. If free coverage is thin, finish honestly and offer `--balanced` or `--deep`.
 
 ### Paid path (`--balanced` or `--deep` only)
@@ -223,6 +225,8 @@ Follow the owning sentence: Step 2 when last30days fails, Step 3 for TinyFish au
 ## Execution Checklist
 
 The order is gate return → safety floor + verification tail → note write → synthesis. The owning sentence of each step is the check. Tabletop traces: `references/eval-scenarios.md`.
+
+The last message of every run is the Step 6 report.
 
 ## Reference
 

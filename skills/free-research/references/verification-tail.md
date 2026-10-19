@@ -4,6 +4,8 @@ Load this file once, after SKILL.md marks the gate returned, in every mode inclu
 
 SKILL.md owns the safety floor, the report template, the url-ledger, and the usable-body definition. This file owns the confirmation bar, origins and primaries, the skeptic passes, the dissent sweep, and their later-turn rules.
 
+For run completion, follow SKILL.md Step 4's "Never end a run on a status message" rule.
+
 ## Ledger order
 
 One evidence label per finding, in this order: the confirmation bar, then the skeptic vote, then the dissent sweep. Freeze the label before the vault note.

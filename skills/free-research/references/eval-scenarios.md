@@ -350,3 +350,9 @@ Do not spend credits on interact for these smokes.
 - **Empty / unreadable variant:** retain the Reddit gap. On the next family turn, Exa runs if eligible; Firecrawl follows only under its normal rules. Do not skip treg merely because X search would not answer this facet.
 - **Files / feedback:** no `.firecrawl/` unless Firecrawl actually runs; optional vault note under its normal rules. Review only on the completed call's structured invitation.
 - **Tools Used / report:** actual free layer; treg Reddit endpoint, reported cost or labeled estimate, treg spend total; later families only if they ran. Intent orders facets, while the open facet selects the endpoint.
+
+## T32. Unavailable paid families still end with the report
+
+- **Input:** `--balanced`; two paid treg calls leave the Reddit gap open; Exa disconnected and Firecrawl denied by the host. Brave is disconnected; no Parallel opt-in.
+- **Required:** skip both in the same turn without waiting, then skip ineligible Brave and Parallel; mark the gate returned. Follow SKILL.md Step 4's completion rule through the verification tail and vault note procedure under its normal rules. No extra paid call or retry.
+- **Report:** write the full Step 6 report with Tools Used recording actual treg endpoints, costs and spend total, skipped families and reasons, and vault-note outcome; include the closing line. Keep the Reddit gap unresolved under Comparison / Gaps. Progress narration never substitutes for this report.

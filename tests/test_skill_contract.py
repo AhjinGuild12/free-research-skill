@@ -50,7 +50,7 @@ CLOSING_LINE = "your agent is only as good as the worst source it believed."
 TRACE_IDS = (
     tuple(f"T{number}" for number in range(1, 18))
     + ("T18a", "T18b", "T19", "T20", "T21", "T22", "T23", "L1", "L2")
-    + tuple(f"T{number}" for number in range(24, 32))
+    + tuple(f"T{number}" for number in range(24, 33))
 )
 KEY_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+){1,3}$")
 KEY_MAX_BYTES = 48
@@ -619,6 +619,38 @@ class TestSkillContract(unittest.TestCase):
         self.assertIsNotNone(listed, "T17 section order not found")
         self.assertEqual(list(REPORT_SECTIONS), [part.strip() for part in listed.group(1).split(", ")])
         self.assertIn(f"`{CLOSING_LINE}`", eval_text)
+
+    def test_run_never_ends_without_step6_report_has_one_owner(self) -> None:
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        rule = skill.split("Never end a run on a status message.", 1)[1].split("\n\n", 1)[0]
+        phrases = (
+            'denied, disconnected, unauthenticated, out of ceiling, or returns nothing counts as "returned no URLs"',
+            "continue down the order in the same turn without waiting",
+            "mark the gate returned and continue to the verification tail and Step 6",
+            "remaining gaps unresolved under Comparison / Gaps",
+            "the Step 6 report, including Tools Used and the closing line, is the final message",
+            "Only then is the run complete.",
+        )
+        for phrase in phrases:
+            self.assertIn(phrase, rule)
+        checklist = skill.split("## Execution Checklist", 1)[1]
+        self.assertIn("The last message of every run is the Step 6 report.", checklist)
+        for path in (TOOL_ROUTING, VERIFICATION_TAIL):
+            text = path.read_text(encoding="utf-8")
+            self.assertIn('follow SKILL.md Step 4\'s "Never end a run on a status message" rule.', text)
+            for phrase in phrases:
+                self.assertNotIn(phrase, text, path.name)
+            self.assertNotRegex(text, r"(?i)(?:final message|last message|run is complete)")
+
+    def test_unavailable_paid_families_still_produce_report_trace(self) -> None:
+        trace = EVAL_SCENARIOS.read_text(encoding="utf-8").split("## T32.", 1)[1].split("\n## ", 1)[0]
+        for phrase in (
+            "--balanced", "two paid treg calls", "Reddit gap", "Exa disconnected",
+            "Firecrawl denied", "skip both in the same turn", "mark the gate returned",
+            "verification tail", "vault note", "full Step 6 report", "Tools Used",
+            "closing line", "unresolved under Comparison / Gaps",
+        ):
+            self.assertIn(phrase, trace)
 
     def test_referenced_files_exist(self) -> None:
         named = sorted(set(_REFERENCE_RE.findall(SKILL_MD.read_text(encoding="utf-8"))))
