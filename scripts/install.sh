@@ -15,6 +15,7 @@ CHECK=0
 WITH_TREG=0
 FORCE=0
 SKIPPED_ANY=0
+SYMLINK_REFUSED=0
 
 usage() {
   cat <<'EOF'
@@ -41,13 +42,14 @@ Options:
 
 Exit status:
   0  install finished, --check, or --help
-  1  a newer destination file was kept, or a treg MCP command failed
+  1  a newer destination file was kept, a destination was a symlink,
+     or a treg MCP command failed
   2  unknown option
 EOF
 }
 
 redact() {
-  awk '
+  GROK_NOTES_VALUE=$(grok_notes_dir_value) awk '
     function replace_all(s, find, repl,    out, i) {
       if (find == "") {
         return s
@@ -62,16 +64,16 @@ redact() {
     BEGIN {
       token = ENVIRON["TREG_TOKEN"]
       notes = ENVIRON["FREE_RESEARCH_NOTES_DIR"]
+      grok_notes = ENVIRON["GROK_NOTES_VALUE"]
     }
     {
-      line = $0
-      line = replace_all(line, token, "***")
+      line = replace_all($0, token, "***")
       line = replace_all(line, notes, "***")
-      prefix = "Authorization: Bearer "
-      i = index(line, prefix)
-      if (i > 0) {
-        head = substr(line, 1, i + length(prefix) - 1)
-        tail = substr(line, i + length(prefix))
+      line = replace_all(line, grok_notes, "***")
+      out = ""
+      while ((i = index(tolower(line), "bearer ")) > 0) {
+        head = substr(line, 1, i + 6)
+        tail = substr(line, i + 7)
         n = length(tail)
         for (j = 1; j <= length(tail); j++) {
           c = substr(tail, j, 1)
@@ -80,9 +82,10 @@ redact() {
             break
           }
         }
-        line = head "***" substr(tail, n + 1)
+        out = out head "***"
+        line = substr(tail, n + 1)
       }
-      print line
+      print out line
     }
   '
 }
@@ -99,10 +102,54 @@ host_present() {
   return 1
 }
 
+# True only for a "treg" key directly inside an "mcpServers" object, not for
+# the word elsewhere in a large state file such as ~/.claude.json.
 json_has_treg_key() {
   awk '
-    BEGIN { found = 0 }
-    /"treg"[[:space:]]*:/ { found = 1; exit 0 }
+    BEGIN { depth = 0; mcp_depth = 0; pending = 0; found = 0; in_string = 0 }
+    {
+      n = length($0)
+      for (i = 1; i <= n; i++) {
+        c = substr($0, i, 1)
+        if (in_string) {
+          if (c == "\\") {
+            i++
+          } else if (c == "\"") {
+            in_string = 0
+            last_string = current
+          } else {
+            current = current c
+          }
+          continue
+        }
+        if (c == "\"") {
+          in_string = 1
+          current = ""
+        } else if (c == ":" && last_string != "") {
+          if (last_string == "mcpServers") {
+            pending = 1
+          } else if (last_string == "treg" && mcp_depth > 0 && depth == mcp_depth) {
+            found = 1
+            exit 0
+          }
+          last_string = ""
+        } else if (c == "{") {
+          depth++
+          if (pending) {
+            mcp_depth = depth
+          }
+          pending = 0
+        } else if (c == "}") {
+          if (depth == mcp_depth) {
+            mcp_depth = 0
+          }
+          depth--
+        } else if (c != " " && c != "\t") {
+          pending = 0
+          last_string = ""
+        }
+      }
+    }
     END { exit found ? 0 : 1 }
   ' "$1"
 }
@@ -110,7 +157,7 @@ json_has_treg_key() {
 toml_has_treg() {
   awk '
     BEGIN { found = 0 }
-    /^\[mcp_servers\.treg(\.|])/ { found = 1; exit 0 }
+    /^[[:space:]]*\[mcp_servers\.treg(\.|])/ { found = 1; exit 0 }
     END { exit found ? 0 : 1 }
   ' "$1"
 }
@@ -136,17 +183,23 @@ codex_treg_token_env_var() {
   ' "$file"
 }
 
-grok_has_notes_dir() {
+# Prints the quoted FREE_RESEARCH_NOTES_DIR value from the Grok config, if any.
+grok_notes_dir_value() {
   local file="$HOME/.grok/config.toml"
-  [[ -f "$file" ]] || return 1
+  [[ -f "$file" ]] || return 0
   awk '
-    BEGIN { found = 0 }
-    /^[[:space:]]*(FREE_RESEARCH_NOTES_DIR|"FREE_RESEARCH_NOTES_DIR"|\047FREE_RESEARCH_NOTES_DIR\047)[[:space:]]*=/ {
-      found = 1
+    /^[[:space:]]*(FREE_RESEARCH_NOTES_DIR|"FREE_RESEARCH_NOTES_DIR"|\047FREE_RESEARCH_NOTES_DIR\047)[[:space:]]*=[[:space:]]*("[^"]|\047[^\047])/ {
+      sub(/^[^=]*=[[:space:]]*/, "")
+      quote = substr($0, 1, 1)
+      rest = substr($0, 2)
+      print substr(rest, 1, index(rest, quote) - 1)
       exit
     }
-    END { exit found ? 0 : 1 }
   ' "$file"
+}
+
+grok_has_notes_dir() {
+  [[ -n "$(grok_notes_dir_value)" ]]
 }
 
 text_names_treg() {
@@ -193,7 +246,7 @@ config_has_treg() {
 
 treg_configured() {
   local cli="$1"
-  local out
+  local out status
   if config_has_treg "$cli"; then
     return 0
   fi
@@ -201,9 +254,10 @@ treg_configured() {
     return 1
   fi
   set +e
-  out=$("$cli" mcp list 2>&1)
+  out=$("$cli" mcp list 2>&1 </dev/null)
+  status=$?
   set -e
-  if text_names_treg "$out"; then
+  if [[ "$status" -eq 0 ]] && text_names_treg "$out"; then
     return 0
   fi
   return 1
@@ -374,14 +428,15 @@ print_next_steps() {
         any=1
       fi
     fi
+    # Grok's own config can set the variable; for other hosts only the environment counts.
+    if [[ -z "${FREE_RESEARCH_NOTES_DIR:-}" ]] && { [[ "$cli" != "grok" ]] || ! grok_has_notes_dir; }; then
+      printf '%s\n' "- FREE_RESEARCH_NOTES_DIR is not set for ${label}."
+      any=1
+    fi
   done
   dups=$(duplicate_names || true)
   if [[ -n "$dups" ]]; then
     printf '%s\n' "- Grok marketplace duplicate is present (free-research-skill-*). Remove it if you want only the native skill."
-    any=1
-  fi
-  if [[ -z "${FREE_RESEARCH_NOTES_DIR:-}" ]] && ! grok_has_notes_dir; then
-    printf '%s\n' "- FREE_RESEARCH_NOTES_DIR is not set."
     any=1
   fi
   if [[ "$any" -eq 0 ]]; then
@@ -396,17 +451,30 @@ print_check() {
   print_next_steps
 }
 
+# Lists every real file and directory under the skill source, one per call.
+list_skill_paths() {
+  (cd "$SKILL_SRC" && find . \( -name "__pycache__" -o -name ".DS_Store" \) -prune -o -print0)
+}
+
 copy_skill() {
   local label="$1"
   local dest_root="$2"
   local rel src_path dest_path src_mtime dest_mtime
+  local rels=()
+  local newer=()
+  local blocked=""
 
   if [[ ! -d "$SKILL_SRC" ]]; then
     printf '%s\n' "Missing skill source: skills/free-research" >&2
     exit 1
   fi
-  mkdir -p "$dest_root"
+  if [[ -L "$dest_root" ]]; then
+    printf '%s\n' "Refusing to install for ${label}: destination is a symlink (${dest_root}). Nothing was changed." >&2
+    SYMLINK_REFUSED=1
+    return 0
+  fi
 
+  # Preflight every path first so a host is never left half-updated.
   while IFS= read -r -d '' rel; do
     rel="${rel#./}"
     if [[ -z "$rel" || "$rel" == "." ]]; then
@@ -418,28 +486,48 @@ copy_skill() {
       continue
     fi
     if [[ -d "$src_path" ]]; then
-      mkdir -p "$dest_path"
+      if [[ -L "$dest_path" ]]; then
+        blocked="$rel"
+      fi
       continue
     fi
     if [[ ! -f "$src_path" ]]; then
       continue
     fi
-    mkdir -p "$(dirname "$dest_path")"
-    if [[ -L "$dest_path" ]]; then
-      rm -f "$dest_path"
-    elif [[ -f "$dest_path" && "$FORCE" -eq 0 ]]; then
+    rels[${#rels[@]}]="$rel"
+    if [[ -f "$dest_path" && ! -L "$dest_path" && "$FORCE" -eq 0 ]] && ! cmp -s "$src_path" "$dest_path"; then
       src_mtime=$(stat -f %m "$src_path")
       dest_mtime=$(stat -f %m "$dest_path")
       if [[ "$dest_mtime" -gt "$src_mtime" ]]; then
-        printf '%s\n' "refusing to overwrite newer file: ${rel}"
-        SKIPPED_ANY=1
-        continue
+        newer[${#newer[@]}]="$rel"
       fi
     fi
-    cp "$src_path" "$dest_path"
-  done < <(
-    cd "$SKILL_SRC" && find . \( -name "__pycache__" -o -name ".DS_Store" \) -prune -o -print0
-  )
+  done < <(list_skill_paths)
+
+  if [[ -n "$blocked" ]]; then
+    printf '%s\n' "Refusing to install for ${label}: destination directory is a symlink (${dest_root}/${blocked}). Nothing was changed." >&2
+    SYMLINK_REFUSED=1
+    return 0
+  fi
+  if [[ "${#newer[@]}" -gt 0 ]]; then
+    for rel in "${newer[@]}"; do
+      printf '%s\n' "refusing to overwrite newer file: ${rel}"
+    done
+    printf '%s\n' "Skipped ${label}: no files were written."
+    SKIPPED_ANY=1
+    return 0
+  fi
+
+  mkdir -p "$dest_root"
+  for rel in "${rels[@]}"; do
+    src_path="$SKILL_SRC/$rel"
+    dest_path="$dest_root/$rel"
+    mkdir -p "$(dirname "$dest_path")"
+    if [[ -L "$dest_path" ]]; then
+      rm -f "$dest_path"
+    fi
+    cp -p "$src_path" "$dest_path"
+  done
   printf '%s\n' "Installed free-research for ${label}."
 }
 
@@ -623,7 +711,10 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     *)
-      printf '%s\n' "Unknown option: $1" >&2
+      case "$1" in
+        -*) printf '%s\n' "Unknown option: $1" | redact >&2 ;;
+        *) printf '%s\n' "Unknown argument." >&2 ;;
+      esac
       usage >&2
       exit 2
       ;;
@@ -632,7 +723,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "$CHECK" -eq 1 ]]; then
-  print_check
+  print_check | redact
   exit 0
 fi
 
@@ -641,6 +732,9 @@ TREG_FAILED=0
 if [[ "$WITH_TREG" -eq 1 ]]; then
   if [[ -z "${TREG_TOKEN:-}" ]]; then
     printf '%s\n' "TREG_TOKEN is missing. Skipped treg MCP setup."
+  elif [[ "$TREG_TOKEN" == *[[:cntrl:]]* ]]; then
+    printf '%s\n' "TREG_TOKEN contains control characters or a newline. Skipped treg MCP setup." >&2
+    TREG_FAILED=1
   else
     add_treg || TREG_FAILED=1
   fi
@@ -650,7 +744,7 @@ if [[ "$SKIPPED_ANY" -eq 1 ]]; then
   printf '%s\n' "Newer destination files were kept. Re-run with --force to overwrite."
   exit 1
 fi
-if [[ "$TREG_FAILED" -eq 1 ]]; then
+if [[ "$SYMLINK_REFUSED" -eq 1 || "$TREG_FAILED" -eq 1 ]]; then
   exit 1
 fi
 exit 0

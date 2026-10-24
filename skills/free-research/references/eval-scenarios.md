@@ -284,7 +284,7 @@ Do not spend credits on interact for these smokes.
 - **Gate / evidence:** fetched usable bodies enter the url-ledger. Emit the gap list, return the gate without paid calls, then apply the verification tail. Snippets stay leads. Strong primary bodies may confirm; missing origins do not open paid tools.
 - **Files / feedback:** optional vault note only through its existing rules; no `.firecrawl/`. No uninvited review.
 - **Tools Used:** last30days one line; TinyFish via treg (free), each endpoint that ran and cost USD 0; treg spend total USD 0; host tools only if used. Empty gaps: treg paid skipped, remaining-gaps empty. Omit Deep Insights and paid-used lines.
-- **Grok control:** with TinyFish MCP connected and working, it serves search/fetch first. treg is fallback, not an extra search lane.
+- **Grok control:** Grok also uses treg's free TinyFish allowlist first even with TinyFish MCP connected and working (see T35). TinyFish MCP is the fallback.
 
 ## T25. treg disconnected or empty
 

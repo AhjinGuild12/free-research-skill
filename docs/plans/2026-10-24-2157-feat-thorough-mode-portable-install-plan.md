@@ -75,7 +75,7 @@ v1.2.1 works in Claude Code and Grok, but Jan cannot rely on it day to day. Code
 
 #### Deferred to Follow-Up Work
 
-- Allowing capped routed `treg.*` endpoints (`X-Treg-Route-Max-Cost`) as a cheaper general-extraction path.
+- Allowing capped routed `treg.*` endpoints (`X-Treg-Route-Max-Cost`) as a cheaper general-extraction path. Now done for `treg.web.extract`, a header-capped paid fallback; only `treg.web.search`, `treg.companies.enrich`, and `treg.x.search.posts` stay never-use.
 - A shared helper that reads per-call treg charges, so a spend mismatch can be attributed without timing analysis.
 
 ---

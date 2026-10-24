@@ -33,6 +33,7 @@ if [ "${1:-}" = "mcp" ] && [ "${2:-}" = "list" ]; then
   if [ -n "${FAKE_MCP_LIST:-}" ] && [ -f "$FAKE_MCP_LIST" ]; then
     cat "$FAKE_MCP_LIST"
   fi
+  exit "${FAKE_MCP_LIST_STATUS:-0}"
 fi
 fake_name=$(basename "$0")
 if [ "${1:-}" = "mcp" ] && [ "${2:-}" = "add" ]; then
@@ -61,6 +62,7 @@ fi
 if [ -n "${FAKE_MCP_FAIL:-}" ]; then
   printf '%s\\n' "mcp add failed: Authorization: Bearer ${TREG_TOKEN:-}" >&2
   printf '%s\\n' "notes=${FREE_RESEARCH_NOTES_DIR:-}" >&2
+  printf '%s\\n' "${FAKE_ECHO_LINE:-}" >&2
   exit 1
 fi
 exit 0
@@ -82,10 +84,12 @@ def skill_snapshot(root: Path) -> dict[str, bytes]:
     return files
 
 
-def repo_files_containing(needle: str) -> list[str]:
+def files_containing(needle: str, root: Path) -> list[str]:
     encoded = needle.encode()
     hits: list[str] = []
-    for path in ROOT.rglob("*"):
+    if not root.is_dir():
+        return hits
+    for path in root.rglob("*"):
         if not path.is_file() or path.is_symlink():
             continue
         try:
@@ -93,8 +97,12 @@ def repo_files_containing(needle: str) -> list[str]:
         except OSError:
             continue
         if encoded in data:
-            hits.append(str(path.relative_to(ROOT)))
+            hits.append(str(path.relative_to(root)))
     return hits
+
+
+def repo_files_containing(needle: str) -> list[str]:
+    return files_containing(needle, ROOT)
 
 
 class InstallScriptTest(unittest.TestCase):
@@ -109,6 +117,14 @@ class InstallScriptTest(unittest.TestCase):
         self.log_path.write_text("")
         self.mcp_list_path = Path(self.tmp.name) / "mcp-list.txt"
         self.mcp_list_path.write_text("")
+
+    def leaks(self, needle: str) -> list[str]:
+        """Repo files plus every installed skill tree under the temp HOME."""
+        hits = repo_files_containing(needle)
+        for host in (".claude", ".grok", ".codex"):
+            tree = self.home / host / "skills" / "free-research"
+            hits.extend(f"{host}/{hit}" for hit in files_containing(needle, tree))
+        return hits
 
     def write_fake(self, name: str) -> None:
         path = self.bin_dir / name
@@ -128,6 +144,8 @@ class InstallScriptTest(unittest.TestCase):
                 "TREG_TOKEN",
                 "FREE_RESEARCH_NOTES_DIR",
                 "FAKE_MCP_FAIL",
+                "FAKE_MCP_LIST_STATUS",
+                "FAKE_ECHO_LINE",
                 "FAKE_ADD_FAIL_CLIS",
                 "FAKE_REMOVE_NOTFOUND_CLIS",
                 "FAKE_REMOVE_FAIL_CLIS",
@@ -245,7 +263,7 @@ class InstallScriptTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn(token, result.stdout)
         self.assertNotIn(token, result.stderr)
-        self.assertEqual(repo_files_containing(token), [])
+        self.assertEqual(self.leaks(token), [])
         self.assertEqual(
             self.mcp_adds("claude"),
             [[
@@ -299,20 +317,160 @@ class InstallScriptTest(unittest.TestCase):
         self.write_fakes()
         first = self.run_install([])
         self.assertEqual(first.returncode, 0, first.stderr)
-        dest = self.home / ".claude" / "skills" / "free-research" / "SKILL.md"
+        root = self.home / ".claude" / "skills" / "free-research"
+        dest = root / "SKILL.md"
+        # An unmodified second install is not a newer edit and copies cleanly.
+        unchanged = self.run_install([])
+        self.assertEqual(unchanged.returncode, 0, unchanged.stdout + unchanged.stderr)
+        self.assertNotIn("refusing to overwrite", unchanged.stdout + unchanged.stderr)
+        self.assert_real_tree(root)
         marker = b"local edit marker\n"
         dest.write_bytes(marker)
         ahead = dest.stat().st_mtime + (10 * 365 * 24 * 3600)
         os.utime(dest, (ahead, ahead))
+        # An older, stale sibling must stay stale: the host is not half-updated.
+        stale = root / "references" / "tool-routing.md"
+        stale_bytes = b"stale sibling\n"
+        stale.write_bytes(stale_bytes)
+        os.utime(stale, (0, 0))
         second = self.run_install([])
         combined = second.stdout + second.stderr
         self.assertNotEqual(second.returncode, 0)
         self.assertEqual(dest.read_bytes(), marker)
+        self.assertEqual(stale.read_bytes(), stale_bytes)
         self.assertIn("refusing to overwrite newer file: SKILL.md", combined)
         self.log_path.write_text("")
         forced = self.run_install(["--force"])
         self.assertEqual(forced.returncode, 0, forced.stderr)
         self.assertEqual(dest.read_bytes(), (SKILL_SRC / "SKILL.md").read_bytes())
+        self.assert_real_tree(root)
+
+    def test_symlinked_destination_is_refused_without_deletion(self) -> None:
+        target = Path(self.tmp.name) / "elsewhere"
+        target.mkdir()
+        keep = target / "keep.txt"
+        keep.write_text("keep\n")
+        skills = self.home / ".claude" / "skills"
+        skills.mkdir(parents=True)
+        root_link = skills / "free-research"
+        root_link.symlink_to(target)
+        result = self.run_install([])
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("symlink", result.stderr)
+        self.assertTrue(root_link.is_symlink())
+        self.assertEqual([path.name for path in target.iterdir()], ["keep.txt"])
+        self.assertEqual(keep.read_text(), "keep\n")
+        root_link.unlink()
+
+        real_root = skills / "free-research"
+        real_root.mkdir()
+        sub_link = real_root / "references"
+        sub_link.symlink_to(target)
+        result = self.run_install([])
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("symlink", result.stderr)
+        self.assertTrue(sub_link.is_symlink())
+        self.assertEqual([path.name for path in target.iterdir()], ["keep.txt"])
+        self.assertFalse((real_root / "SKILL.md").exists())
+
+    def test_unknown_argument_never_echoes_secret(self) -> None:
+        token = "frtok_" + uuid.uuid4().hex
+        bare = self.run_install([token], TREG_TOKEN=token)
+        self.assertEqual(bare.returncode, 2)
+        self.assertNotIn(token, bare.stdout + bare.stderr)
+        flagged = self.run_install(["--" + token], TREG_TOKEN=token)
+        self.assertEqual(flagged.returncode, 2)
+        self.assertIn("Unknown option", flagged.stderr)
+        self.assertNotIn(token, flagged.stdout + flagged.stderr)
+
+    def test_token_with_control_characters_is_rejected(self) -> None:
+        self.write_fakes()
+        first, second = "frtok_" + uuid.uuid4().hex, "frtok_" + uuid.uuid4().hex
+        result = self.run_install(["--with-treg"], TREG_TOKEN=f"{first}\n{second}")
+        combined = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 1, combined)
+        self.assertIn("control characters", combined)
+        self.assertNotIn(first, combined)
+        self.assertNotIn(second, combined)
+        self.assertEqual(self.all_mcp_adds(), [])
+
+    def test_mcp_error_redacts_grok_config_notes_dir_and_every_bearer(self) -> None:
+        self.write_fakes()
+        notes = "/grok-config-notes-" + uuid.uuid4().hex
+        (self.home / ".grok").mkdir()
+        (self.home / ".grok" / "config.toml").write_text(
+            f'[shell_environment_policy.set]\nFREE_RESEARCH_NOTES_DIR = "{notes}"\n'
+        )
+        first, second = "tok1" + uuid.uuid4().hex, "tok2" + uuid.uuid4().hex
+        result = self.run_install(
+            ["--with-treg"],
+            TREG_TOKEN="frtok_" + uuid.uuid4().hex,
+            FAKE_MCP_FAIL="1",
+            FAKE_ECHO_LINE=f"cfg={notes} Authorization: Bearer {first} then BEARER {second}",
+        )
+        combined = result.stdout + result.stderr
+        self.assertIn("mcp add failed", combined)
+        for secret in (notes, first, second):
+            self.assertNotIn(secret, combined)
+
+    def test_check_redacts_token_shaped_codex_env_var_name(self) -> None:
+        token = "frtok_" + uuid.uuid4().hex
+        codex = self.home / ".codex"
+        codex.mkdir()
+        (codex / "config.toml").write_text(
+            f'[mcp_servers.treg]\nbearer_token_env_var = "{token}"\n'
+        )
+        result = self.run_install(["--check"], TREG_TOKEN=token)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn(token, result.stdout + result.stderr)
+        self.assertIn("treg MCP: configured", result.stdout)
+
+    def test_claude_json_treg_key_must_sit_directly_under_mcp_servers(self) -> None:
+        (self.home / ".claude").mkdir()
+        config = self.home / ".claude.json"
+        cases = (
+            ('{"projects": {"/p": {"treg": {"x": 1}, "mcpServers": {}}}}', False),
+            ('{"mcpServers": {"other": {"treg": 1}}}', False),
+            ('{"history": ["\\"treg\\": nope"], "mcpServers": {"other": {}}}', False),
+            ('{\n  "mcpServers": {\n    "treg": {"type": "http"}\n  }\n}\n', True),
+            ('{"projects": {"/p": {"mcpServers": {"treg": {}}}}}', True),
+        )
+        for text, expected in cases:
+            with self.subTest(text=text):
+                config.write_text(text)
+                result = self.run_install(["--check"])
+                block = _status_blocks(result.stdout)["Claude Code"]
+                self.assertIn("treg MCP: configured" if expected else "treg MCP: not configured", block)
+
+    def test_indented_codex_treg_table_counts_as_configured(self) -> None:
+        codex = self.home / ".codex"
+        codex.mkdir()
+        (codex / "config.toml").write_text('  [mcp_servers.treg]\nurl = "https://treg.to/mcp/"\n')
+        result = self.run_install(["--check"])
+        self.assertIn("treg MCP: configured", _status_blocks(result.stdout)["Codex"])
+
+    def test_failed_mcp_list_is_not_trusted(self) -> None:
+        self.write_fakes()
+        self.mcp_list_path.write_text("treg\n")
+        result = self.run_install(["--check"], FAKE_MCP_LIST_STATUS="1")
+        self.assertIn("treg MCP: not configured", _status_blocks(result.stdout)["Claude Code"])
+        ok = self.run_install(["--check"])
+        self.assertIn("treg MCP: configured", _status_blocks(ok.stdout)["Claude Code"])
+
+    def test_empty_grok_notes_dir_and_per_host_next_step(self) -> None:
+        (self.home / ".grok").mkdir()
+        (self.home / ".claude").mkdir()
+        config = self.home / ".grok" / "config.toml"
+        config.write_text('[shell_environment_policy.set]\nFREE_RESEARCH_NOTES_DIR = ""\n')
+        result = self.run_install(["--check"])
+        self.assertIn("FREE_RESEARCH_NOTES_DIR: not set", _status_blocks(result.stdout)["Grok"])
+        steps = result.stdout.split("Next steps\n", 1)[1]
+        self.assertIn("FREE_RESEARCH_NOTES_DIR is not set for Grok", steps)
+        config.write_text('[shell_environment_policy.set]\nFREE_RESEARCH_NOTES_DIR = "/x"\n')
+        result = self.run_install(["--check"])
+        steps = result.stdout.split("Next steps\n", 1)[1]
+        self.assertNotIn("not set for Grok", steps)
+        self.assertIn("FREE_RESEARCH_NOTES_DIR is not set for Claude Code", steps)
 
     def test_already_configured_treg_is_not_added_again_without_force(self) -> None:
         self.write_fakes()
@@ -445,7 +603,7 @@ class InstallScriptTest(unittest.TestCase):
                     ["--with-treg", "--force"], TREG_TOKEN=token, **extra
                 )
                 self.assertNotIn(token, result.stdout + result.stderr)
-        self.assertEqual(repo_files_containing(token), [])
+        self.assertEqual(self.leaks(token), [])
 
     def test_mcp_add_error_redacts_token_and_notes_dir(self) -> None:
         self.write_fakes()
@@ -462,8 +620,8 @@ class InstallScriptTest(unittest.TestCase):
         self.assertIn("mcp add failed", combined)
         self.assertNotIn(token, combined)
         self.assertNotIn(notes, combined)
-        self.assertEqual(repo_files_containing(token), [])
-        self.assertEqual(repo_files_containing(notes), [])
+        self.assertEqual(self.leaks(token), [])
+        self.assertEqual(self.leaks(notes), [])
 
     def test_check_never_prints_token_or_notes_dir(self) -> None:
         self.write_fakes()

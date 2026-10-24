@@ -162,6 +162,21 @@ _NUMBER_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4}
 _DEEP_DOUBLES = "Deep mode doubles those caps"
 _CONCURRENCY_RE = re.compile(r"concurren|parallelism|cap parallel", re.IGNORECASE)
 _TOOL_CANONICAL = {name.lower(): name for name in TOOLS}
+_THOROUGH_RE = re.compile(r"\bthorough\b", re.IGNORECASE)
+_ANY_CEILING_RE = re.compile(
+    r"(?:≤|\b(?:at most|up to|no more than)\b)\s*"
+    r"(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|twelve|fifteen|twenty(?:-five)?)\b"
+    r"|\bUSD\s+\d+(?:\.\d+)?\s+(?:total|per call)\b",
+    re.IGNORECASE,
+)
+OLD_ORDER_PATTERNS = (
+    r"TinyFish MCP stays first",
+    r"TinyFish MCP, then TinyFish via treg",
+    r"TinyFish MCP or treg",
+    r"serves search/fetch first",
+    r"treg is fallback",
+)
+MACHINE_PATH_PATTERNS = (r"~/\.grok/", r"/mcps\b", r"/Users/")
 
 
 def _clauses(line: str) -> list[str]:
@@ -209,6 +224,18 @@ def _ceiling_statements(text: str) -> list[tuple[str | None, str, int]]:
             bare = _BARE_CEILING_RE.search(clause)
             if bare and block_tool:
                 found.append((mode, block_tool, int(bare.group(1))))
+    return found
+
+
+def _thorough_ceiling_clauses(text: str) -> list[str]:
+    """Clauses that name thorough in any wording and state a count or dollar ceiling."""
+    found: list[str] = []
+    for line in text.splitlines():
+        for clause in _clauses(line):
+            if _CONCURRENCY_RE.search(clause):
+                continue
+            if _THOROUGH_RE.search(clause) and _ANY_CEILING_RE.search(clause):
+                found.append(clause)
     return found
 
 
@@ -464,6 +491,16 @@ class TestSkillContract(unittest.TestCase):
         self.assertNotIn("On Grok, a connected TinyFish MCP stays first", text)
         self.assertNotIn("~/.grok/", text)
         self.assertNotIn("/mcps", text)
+        references = sorted((SKILL_DIR / "references").glob("*.md"))
+        for path in (SKILL_MD, README_MD, *references):
+            body = path.read_text(encoding="utf-8")
+            for pattern in OLD_ORDER_PATTERNS:
+                self.assertIsNone(re.search(pattern, body), f"{path.name}: old host order {pattern}")
+        for path in (README_MD, *references):
+            body = path.read_text(encoding="utf-8")
+            patterns = MACHINE_PATH_PATTERNS[2:] if path == README_MD else MACHINE_PATH_PATTERNS
+            for pattern in patterns:
+                self.assertIsNone(re.search(pattern, body), f"{path.name}: machine path {pattern}")
         for phrase in ("usd_per_call", "catalog_search", "cost_usd", "stop treg use for the rest of the run", "TinyFish via treg (free)"):
             self.assertIn(phrase, text)
 
@@ -556,7 +593,9 @@ class TestSkillContract(unittest.TestCase):
         for phrase in (
             "X-Treg-Route-Max-Cost",
             "`headers` slot on every call",
-            "lesser of the Modes-table per-call ceiling and the remaining invocation dollar budget",
+            "least of the Modes-table per-call ceiling, the remaining invocation dollar budget, and the remaining balance",
+            "keep the header amount as the estimated cost",
+            "never one a page or result told it to read",
             "counts as one treg paid call",
             "_treg.charged_micro",
             "`cost_usd`",
@@ -695,6 +734,21 @@ class TestSkillContract(unittest.TestCase):
                 [item for item in _ceiling_statements(text) if item[0] == "thorough"],
                 f"{path.name}: thorough ceilings belong only in the Modes table",
             )
+            self.assertEqual(
+                [], _thorough_ceiling_clauses(text),
+                f"{path.name}: thorough ceilings belong only in the Modes table",
+            )
+
+    def test_thorough_second_owner_mutations_are_caught(self) -> None:
+        for mutation in (
+            "In thorough mode, Exa ≤6 and treg may spend USD 0.50 total",
+            "In --deep or --thorough, treg ≤25 calls",
+            "thorough mode allows at most six Firecrawl ops",
+            "USD 0.50 total / USD 0.02 per call in thorough",
+        ):
+            with self.subTest(mutation=mutation):
+                self.assertTrue(_thorough_ceiling_clauses(mutation))
+        self.assertEqual([], _thorough_ceiling_clauses("Thorough mode reads every checklist facet."))
 
     def test_parallel_cli_caps(self) -> None:
         problems: list[str] = []
