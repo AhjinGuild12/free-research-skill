@@ -2,21 +2,25 @@
 
 > *"You already have the page. Why is the agent buying another copy of the headline?"*
 
-## Current state (2026-10-18)
+## Current state (2026-10-24)
 
-Version 1.2.1 is on `fix/treg-trim-and-routed`, pushed, and open as [PR #2](https://github.com/AhjinGuild12/free-research-skill/pull/2) against `main`. Five commits: the plan (`adad717`), treg as free web layer and first paid family (`134b077`, 1.2.0), trimmed and capped treg calls (`6fb301a`, 1.2.1), the Claude Code `$<digit>` and TinyFish `domain_type` fixes (`5594664`), and the Codex review fixes (`5fd242c`). 72 tests pass, and `FREE_RESEARCH_CHECK_COPIES=1` passes across all six copies: repo, Claude Code, Grok live, Grok pack, Codex, and Codex pack. The skill now installs and runs in Claude Code without the TinyFish MCP.
+Version 1.3.0 is being prepared on `feat/thorough-portable-install`. The run card and all four manifests use that version. This checkout adds `--thorough` above free, balanced, and deep; free stays the default. The old modes keep their close test and budgets. Thorough turns a full intent checklist into named facets before the gate, and keeps decision-bearing facets open until two independent origins or one primary source answer them. It asks for a report with enough concrete detail to work from, and lists what it still could not answer. Two non-primary origins can close a thorough facet without confirming its claim: the verification tail still wants three origins or one primary.
 
-Free web order is TinyFish MCP, then treg's zero-priced TinyFish allowlist (`tinyfish.web.search`, `.fetch`, `.search.news`, `.search.publications`), then host web. Paid order is leftover free fetch, treg by intent, Exa, Firecrawl, Brave, then opted-in `parallel-cli`. SKILL.md's Modes table owns every treg limit: balanced 4 calls / USD 0.05, deep 10 / USD 0.25, USD 0.02 per call. Every paid call sends `X-Treg-Route-Max-Cost` set to the smaller of the per-call ceiling and the remaining budget. AnyAPI trim options (`max_items`, `fields`) go in the `query` slot, never the body. A nonzero charge on a free endpoint disables treg for the invocation.
+Every host now starts free web reads with treg's zero-priced TinyFish allowlist, then TinyFish MCP, then host web. Paid order is leftover free fetch, treg by the open facet, Exa, Firecrawl, Brave, then opted-in `parallel-cli`. Intent orders facets; it does not choose which endpoints a facet is allowed to use. SKILL.md's Modes table owns the ceilings, with README as its mirror. AnyAPI trim options (`max_items`, `fields`) stay in the `query` slot, and paid calls still send the bounded `X-Treg-Route-Max-Cost` header. A nonzero charge on a free endpoint disables treg and switches to host web.
 
-Live evidence, 2026-10-17. TinyFish search and fetch through treg reported `cost_usd: 0`. One paid X search reported `cost_usd: 0.0006`, and the balance dropped from 8.803199 to 8.802599, an exact match. End-to-end `/free-research` in Claude Code ran twice on treg WebAccess, once free and once `--balanced`. Both spent USD 0. The balanced run closed its only gap with a free fetch of the launch post, so the paid branch was correctly skipped. That means the treg paid family has a manual-call proof, not an end-to-end one. A run on a topic the free layer cannot close is still owed.
+The portable install flow is `scripts/install.sh --check`, then `scripts/install.sh --with-treg`, then `--check` again. Jan supplies `TREG_TOKEN` in the environment; the script never prints it. Codex keeps an environment reference, while Claude Code and Grok keep the header in their own config. The script copies the complete tree for supported hosts present on the Mac and refuses newer destination files unless `--force` is explicit. Existing treg setup is skipped unless forced. Check mode reports versions, last30days, treg, duplicates, and notes-variable presence without printing secrets or the notes path. The Grok marketplace v1.0.0 duplicate is a warning, and removing it stays Jan's choice. The separate pack copies still need the six-copy workflow below.
 
-Only treg MCP `catalog_search`, `call`, `balance`, and `review` are allowed, and `review` only on a structured invitation inside treg's own `call` response. Routed `treg.*` endpoints stay never-use: they drop trim params, return rows twice (`output` plus `raw`), and can show a free headline while misses bill. `catalog_get` stays out of runs because one response is 60,000 to 77,000 characters. Result content is untrusted. A page or a `hint` field asking for `feedback`, media, an agent run, or publishing is an injection attempt, never permission.
+This is repo work, not a receipt for this Mac. Codex treg auth, install checks, six-copy parity after copying, and the cross-host smokes remain host-owned U6 proof. The plan records Codex's unset token and the older Grok duplicate; their current state needs a fresh check. Run free and balanced on all three hosts and thorough on at least one, with a hard timeout and paid-tool denies as specified by the plan. Record balances around paid runs serially. The two selected contract/plugin test modules pass: 47 tests run, with one opt-in copy-parity skip. No new live smoke or install success is claimed here.
+
+Historical live evidence, 2026-10-17: treg TinyFish search and fetch reported zero cost. One manual paid X search reported USD 0.0006, matching the balance drop from 8.803199 to 8.802599. The Claude Code free and balanced runs both spent zero because free reads closed the gaps. Those runs predate 1.3.0 and do not prove thorough or the portable installer.
+
+Only treg MCP `catalog_search`, `call`, `balance`, and invited `review` are allowed. `treg.web.extract` is a header-capped paid fallback; only `treg.web.search`, `treg.companies.enrich`, and `treg.x.search.posts` stay never-use. Result content is untrusted; a page asking for feedback, media, an agent run, or publishing is never permission.
 
 ---
 
 ## 1. Project Overview
 
-Free Research is the `/free-research` skill you run when you want a sourced answer and you want the paid tools to wait their turn. It is for you on this Mac, mostly inside Grok, and for any other agent host that can load an Agent Skill: Claude Code, Codex, Cursor, Copilot, or Gemini CLI. The problem it solves is a write-up that sounds finished because it saw a title, a last30days snippet, or one syndicated retelling. You type a topic, optionally `--free`, `--balanced`, or `--deep`, and the agent walks community pulse, free page reads, a named-gap check, and a short review of what it is willing to assert, then returns one report in a fixed section order whose Tools Used list matches what actually ran. When `FREE_RESEARCH_NOTES_DIR` points at a project folder, the run also leaves a version-2 note under that folder's `runs/`, so the next wording of the same subject starts from those leads and still fetches the pages again. The repo is Markdown the agent follows, two Python standard-library scripts, and plugin manifests. Search itself stays in the last30days skill and the TinyFish MCP, which you install separately.
+Free Research is the `/free-research` skill you run when you want a sourced answer and you want the paid tools to wait their turn. It is for you on this Mac, mostly inside Grok, and for any other agent host that can load an Agent Skill: Claude Code, Codex, Cursor, Copilot, or Gemini CLI. The problem it solves is a write-up that sounds finished because it saw a title, a last30days snippet, or one syndicated retelling. You type a topic, optionally `--free`, `--balanced`, `--deep`, or `--thorough`, and the agent walks community pulse, free page reads, a named-gap check, and a short review of what it is willing to assert, then returns one report in a fixed section order whose Tools Used list matches what actually ran. When `FREE_RESEARCH_NOTES_DIR` points at a project folder, the run also leaves a version-2 note under that folder's `runs/`, so the next wording of the same subject starts from those leads and still fetches the pages again. The repo is Markdown the agent follows, Python standard-library helpers, a portable shell installer, and plugin manifests. Search itself stays in the last30days skill and the TinyFish MCP, which you install separately.
 
 ---
 
@@ -24,9 +28,9 @@ Free Research is the `/free-research` skill you run when you want a sourced answ
 
 Think of a research run like a helpdesk ticket with a spending card taped to the monitor. You are the person who opened the ticket. The agent is the tech on shift. `SKILL.md` is the laminated run card: parse the ticket, ask the break room what people are saying, walk the free shelves, and only then decide whether the card comes out. The reference files are binders. You open a binder at the step that needs it. If a binder is missing, the run card's safety floor still applies, and that floor is the sentence that keeps a lost appendix from turning into a purchase.
 
-The spending card is the remaining-gap gate, and it is the only spend switch. After the free layer, the agent writes `gap: <facet> — <why the free layer missed it>`, or `remaining-gaps: none`. A facet is closed when a usable body answers it. An empty or failed family keeps the gap open for the next family in line. Only when the last eligible family comes back with no new URLs does the search for that facet end, and then the report calls it unresolved. A usable body is extracted main text that answers that named question. A title, a last30days snippet, an empty or paywalled page, nav-only markdown, and an Exa highlight are leads. Wanting a stronger source is a wish. It is a closed shelf. `--free` never takes the card out: no Exa, no Brave, no Firecrawl (including `firecrawl --status`), no `parallel-cli`, no Parallel Task API. If the free pass is thin, the report says so and offers `--balanced` or `--deep`.
+The spending card is the remaining-gap gate, and it is the only spend switch. After the free layer, the agent writes `gap: <facet> — <why the free layer missed it>`, or `remaining-gaps: none`. In free, balanced, and deep, a facet is closed when a usable body answers it. Thorough adds the checklist and decision-bearing origin test described above. An empty or failed family keeps the gap open for the next family in line. Only when the last eligible family comes back with no new URLs does the search for that facet end, and then the report calls it unresolved. A usable body is extracted main text that answers that named question. A title, a last30days snippet, an empty or paywalled page, nav-only markdown, and an Exa highlight are leads. Outside thorough's pre-gate decision-bearing origin test, wanting a stronger source is a wish. It is a closed shelf. `--free` never takes the card out: no Exa, no Brave, no Firecrawl (including `firecrawl --status`), no `parallel-cli`, no Parallel Task API. If the free pass is thin, the report says so and offers `--balanced` or `--deep`.
 
-Paid mode runs one family per turn and stops when gaps close. Free-fetch leftover URLs, probe connected tools, try treg's priced intent route, then Exa, Firecrawl leftover reads, Brave, and opted-in `parallel-cli`. Parallel still needs explicit invocation opt-in, a paid mode, the real CLI already on PATH, and an open gap. All treg/Exa/Firecrawl/Brave ceilings live in SKILL.md's Modes table; the routing reference owns Parallel caps. When no family remains eligible, return the gate and report unanswered facets as unresolved.
+Paid mode runs one family per turn and stops when gaps close. Free-fetch leftover URLs, probe connected tools, try treg's priced route for the open facet, then Exa, Firecrawl leftover reads, Brave, and opted-in `parallel-cli`. Parallel still needs explicit invocation opt-in, a paid mode, the real CLI already on PATH, and an open gap. All treg/Exa/Firecrawl/Brave ceilings live in SKILL.md's Modes table; the routing reference owns Parallel caps. When no family remains eligible, return the gate and report unanswered facets as unresolved.
 
 Confirmation is a stamp you put on a claim after the card is back in the drawer. Think of it like accepting a change record: three independent publisher chains agree, or you have the organization's own artifact (its post, paper, filing, commit, or docs page). Three articles that all repeat one press release are one origin, the way three forwarded emails are still one announcement. The verification tail then runs three skeptic passes (correctness, recency, source quality) and, if anything is still confirmed, one dissent sweep that looks for someone saying the claim is wrong. A majority of failing passes, or a contradicting primary you actually fetched, knocks the claim down to unconfirmed. A thinner objection stays attached and the claim can remain confirmed, but the Executive Summary has to say "confirmed with dissent attached" and include the objection. An unconfirmed label does not reopen the paid line. The tail loads once, after the gate is marked returned, in every mode including free. The safety floor stays in `SKILL.md` on purpose: a floor that lives in a file which failed to load protects nothing. If `tool-routing.md` fails to load, no paid call is made. If `verification-tail.md` fails to load, findings whose review did not finish stay unconfirmed, no further paid call is made, and no note is written. Calls that already happened still show up under Tools Used. The report ships either way.
 
@@ -42,11 +46,11 @@ One run, from your message to the report:
 
 ```text
 you
-  /free-research TOPIC [--free|--balanced|--deep] [--parallel]
+  /free-research TOPIC [--free|--balanced|--deep|--thorough] [--parallel]
         |
         v
 +---------------------------+
-| Host agent, either host  |
+| Host agent, any host  |
 | reads the loaded SKILL.md |
 | Step 1: topic, mode,      |
 | parallel-opt-in, intent   |
@@ -63,9 +67,9 @@ Step 3  load references/vault-notes.md
         |     yes: read <=3 version-2 notes + legacy exact-slug, as leads
         |     no:  one skip line, no fallback folder
         |
-        +-- TinyFish search, 3 to 5 angles
-        |   TinyFish fetch_content, top 6 to 10 URLs
-        |   if TinyFish fails: treg free allowlist, then host search/fetch
+        +-- treg free search, 3 to 5 angles
+        |   treg free fetch, top 6 to 10 URLs
+        |   if treg fails: TinyFish MCP, then host search/fetch
         |     in the same turn, labeled free-host fallback
         |
         +-- captions (at most 2 videos, only if a claim depends on them)
@@ -78,13 +82,13 @@ Step 4  write the gap list
         |
         +-- empty, or mode is free ----------> mark gate returned
         |
-        +-- gaps open, balanced or deep
+        +-- gaps open, balanced, deep, or thorough
               load references/tool-routing.md
               (load failure: no paid call, gate returns)
               one paid family this turn:
                 leftover free fetch
                 -> probe
-                -> treg by intent, catalog-priced and capped
+                -> treg by open facet, catalog-priced and capped
                 -> Exa
                 -> Firecrawl leftover pages
                 -> Brave
@@ -111,7 +115,7 @@ Step 6 report, fixed sections, this last line:
   your agent is only as good as the worst source it believed.
 ```
 
-A later message is the same invocation only when it does not set a mode, does not opt into Parallel, and does not name a new topic. Saying yes to the report's offer of balanced or deep is a new invocation. The same invocation does not look notes up again, does not spawn a second set of skeptics, and does not sweep again.
+A later message is the same invocation only when it does not set a mode, does not opt into Parallel, and does not name a new topic. Saying yes to the report's offer of balanced, deep, or thorough is a new invocation. The same invocation does not look notes up again, does not spawn a second set of skeptics, and does not sweep again.
 
 The shape came in two passes, and the second one refused to touch the spend rules. Late September 2026 ported the live remaining-gap contract into this repo and added the ledger, the skeptics, the one dissent sweep, YouTube captions, live X, the opt-in Parallel lanes, and a vault note that cannot count as proof. The copy-out replaced a symlink. On 9 October 2026 the spec was slimmed (version 1.1.0): contract tests landed before the prose moved, the tail moved into its own reference, notes gained the subject key, and the vault path moved into your Grok config. What free, balanced, and deep may call, in what order, and how many times, stayed put.
 
@@ -224,29 +228,29 @@ The tree above is the recipe. These are the choices that decide where money goes
 
 | Technology | Why | Alternatives considered |
 |---|---|---|
-| Grok as the primary host | Real runs happen here, mostly in free mode. The skill keeps Grok steps: load last30days from the Grok skills folder, re-auth TinyFish at `/mcps`, and take the notes folder from `[shell_environment_policy.set]`. A native skill in `~/.grok/skills` wins over a same-name plugin. | Claude Code, Codex, Cursor, Copilot, and `npx skills` can install the same folder. Writing the steps for those hosts would drop the paths this MacBook uses. A hosted research service off the laptop was outside the product. |
-| Free, balanced, and deep | Free is the default and spends nothing. Balanced and deep use one paid order, with ceilings, and stop when the named holes are filled. A free layer that already answered the question skips paid tools even on `--deep`. | Spending because coverage "feels thin." Firing Exa, Firecrawl, and Brave in one batch. Letting an unconfirmed label, a skeptic downgrade, or an expired note reopen the wallet. |
+| Claude Code, Grok, and Codex | The same path-free run card loads from each host's skills tree. treg is first on all three; host MCP controls handle authentication. Grok can supply the notes setting through `[shell_environment_policy.set]`. | Three separate run cards that drift. Hardcoded MacBook paths in a public skill. A hosted research service off the laptop remains outside the product. |
+| Free, balanced, deep, and thorough | Free is the default and spends nothing. Paid modes use one order, with ceilings, and stop when their named facets meet the close test. Thorough requires the intent checklist and decision-bearing origin bar. A free layer that already answered the question skips paid tools even on `--deep`. | Spending because coverage "feels thin." Firing Exa, Firecrawl, and Brave in one batch. Letting an unconfirmed label, a skeptic downgrade, or an expired note reopen the wallet. |
 | last30days | First step, every run, free. Community pulse from Reddit, X, YouTube, Hacker News, and the rest. One Tools Used line. | Opening on web search. Adding `--web-backend parallel-mcp` unless you asked for that backend. Editing last30days from this repo, or vendoring it. |
-| TinyFish `search` and `fetch_content` | Free discovery, 3 to 5 real angles, then free page bodies for the top 6 to 10 URLs, up to 10 URLs in one fetch. | Host `web_search` and `open_page` as the primary reader. They are the same-turn fallback when TinyFish auth fails. TinyFish `run_web_automation`, which bills. Firecrawl as the first reader of every URL. |
-| Exa, then Firecrawl, then Brave | Paid, and only on balanced or deep, and only while a named facet still has no usable page body. Ceilings live in the SKILL.md modes table: balanced is Exa ≤2, Firecrawl ≤3 leftover ops, Brave ≤1. Deep is Exa ≤4, Firecrawl ≤6, Brave ≤2. | Exa fetch as the default way to read a leftover URL. An Exa highlight is not a page body. Firecrawl search on a gap Exa already covered. Parallel as the replacement for this order. |
-| `parallel-cli`, and Parallel Search MCP | Search MCP is a free extra angle when it is already connected, including on free mode. `parallel-cli` is paid, sits after Brave, and runs only with `--parallel`, a balanced or deep mode, the real binary on `PATH`, and a named gap still open. Balanced allows one research run and two extracts. Deep doubles that. `tool-routing.md` owns those caps. | Parallel as the default engine. Installing it during a run. Calling the Parallel Task API. Treating GNU `parallel` as this tool. On 26 September 2026 the CLI was absent and `PARALLEL_API_KEY` was unset, which is why it stayed opt-in. |
+| treg free allowlist, then TinyFish MCP | Free discovery, 3 to 5 real angles, then free page bodies for the top 6 to 10 URLs, up to 10 URLs in one fetch. | Host `web_search` and `open_page` as the primary reader. They follow treg and TinyFish MCP failures in the same turn. TinyFish `run_web_automation`, which bills. Firecrawl as the first reader of every URL. |
+| Exa, then Firecrawl, then Brave | Paid, on balanced, deep, or thorough, and only while a named facet is still open under that mode's close test. Ceilings live in the SKILL.md Modes table. | Exa fetch as the default way to read a leftover URL. An Exa highlight is not a page body. Firecrawl search on a gap Exa already covered. Parallel as the replacement for this order. |
+| `parallel-cli`, and Parallel Search MCP | Search MCP is a free extra angle when it is already connected, including on free mode. `parallel-cli` is paid, sits after Brave, and runs only with `--parallel`, a balanced, deep, or thorough mode, the real binary on `PATH`, and a named gap still open. Thorough shares deep's caps; `tool-routing.md` owns those caps. | Parallel as the default engine. Installing it during a run. Calling the Parallel Task API. Treating GNU `parallel` as this tool. On 26 September 2026 the CLI was absent and `PARALLEL_API_KEY` was unset, which is why it stayed opt-in. |
 | `scripts/run_note.py` | Stdlib-only Python shipped inside the skill directory, so a skill-only install still has it. One topic codec, and one exclusive writer. The repo linter imports that same codec. | Asking the model to do `O_EXCL` and `fstat` with its own file tools. Hand-copying the encode functions into the skill prose. PyYAML or python-frontmatter. A shell `>` redirect onto the note path. |
 | Vault notes | Short Obsidian markdown in the project folder's `runs/` directory. A 2 to 4 word subject key, plus 8 hex characters of the full topic, so related questions meet and different questions do not overwrite each other. Labels are leads. Expiry is 7, 30, or 90 days. | Exact-sentence filenames. Hardcoding the Obsidian path in SKILL.md. A fallback into `raw/` or `3. Resources/X Articles/`. Rewriting the older notes. Per-URL provenance tags. A separate file that remembers budgets across turns. |
 | Copy-out to the live skill and the pack | After both destinations still match a recorded baseline, copy the repo skill tree onto `~/.grok/skills/free-research` and `skill-pack/grok/free-research`, including `references/` and `scripts/`. | A symlink from the live skills folder back to this repo. Copying older repo bytes over a newer live tree. Treating the installed plugin checkout, or the Codex pack copy, as part of that copy. |
 
 ### Grok is the machine this runs on
 
-You invoke `/free-research` on Grok. The October plan says that in one line, and the skill repeats it: Grok is the primary host. The other install paths are real. Claude Code can add the marketplace plugin. `npx skills add` covers Codex, Cursor, Copilot, and Gemini CLI. Pick one method per host, or Claude Code will show the skill twice.
+Grok is where much of the earlier proof came from. The 24 October plan makes the everyday invocation the same in Claude Code, Grok, and Codex. The portable installer copies one complete skill tree to each supported host present. Other Agent Skills hosts can still use `npx skills add`. Pick one method per host, or the skill can show twice.
 
-The instructions that name a place on disk are written for Grok. last30days is loaded from `~/.grok/skills/last30days`, or from the plugin cache if that is what the host loaded. TinyFish auth recovery is `/mcps`, then tinyfish, then authenticate, and the same turn continues on the host's own web tools. The notes directory arrives because Grok's user guide lets `[shell_environment_policy.set]` inject environment variables into the shell. The skill reads one variable by name, `FREE_RESEARCH_NOTES_DIR`.
+The run card loads last30days from whichever skills tree or plugin cache the host loaded. On Grok, TinyFish auth recovery is `/mcps`, then tinyfish, then authenticate. The free fallback order stays treg, TinyFish MCP, then host web without waiting for re-authentication. The notes directory arrives because Grok's user guide lets `[shell_environment_policy.set]` inject environment variables into the shell. The skill reads one variable by name, `FREE_RESEARCH_NOTES_DIR`.
 
-Grok's own skill discovery is why the copy target matters. A native skill wins over a plugin skill with the same name. Updating `~/.grok/skills/free-research` changes the run you get tomorrow. The installed plugin checkout under `~/.grok/installed-plugins/` stays on the published commit until you publish. That checkout is a different drawer. The Codex pack copy is older too, and this round left it alone.
+Grok's own skill discovery is why the copy target matters. A native skill wins over a plugin skill with the same name. Updating `~/.grok/skills/free-research` changes the run you get tomorrow. The installed plugin checkout under `~/.grok/installed-plugins/` stays on the published commit until you publish. That checkout is a different drawer. Check the pack copies for drift before updating them; the portable installer does not update those separate trees.
 
 ### Free first, then a capped paid queue
 
-Free mode is the default because most of your runs should spend nothing. It may call last30days and TinyFish. If TinyFish is down, it may call the host's `web_search` and `open_page`. YouTube captions join when a claim depends on a video (at most two, through the transcript skill, with no `pip install` during the run). Up to three X thread fetches join before the gate when the intent is a person or news. Parallel Search MCP may add one angle if you have already connected it. An excerpt-capped result stays a lead. The order, the ceilings, and the opt-in predicates are the architecture above. The choice was a queue, one family per turn, against a batch that fires Exa, Firecrawl, and Brave because coverage feels thin.
+Free mode is the default because most of your runs should spend nothing. It calls last30days, then treg's free TinyFish allowlist, with TinyFish MCP and the host's `web_search` and `open_page` as fallbacks. YouTube captions join when a claim depends on a video (at most two, through the transcript skill, with no `pip install` during the run). Up to three X thread fetches join before the gate when the intent is a person or news. Parallel Search MCP may add one angle if you have already connected it. An excerpt-capped result stays a lead. The order, the ceilings, and the opt-in predicates are the architecture above. The choice was a queue, one family per turn, against a batch that fires Exa, Firecrawl, and Brave because coverage feels thin.
 
-The spend switch is boring on purpose. Spend is allowed when the invocation said `--balanced` or `--deep`, and a named facet still has no usable page body. "I wish this had a nicer source" is not a gap. An unconfirmed label, a skeptic vote, a missing third origin, dissent, an expired note, and a truncated excerpt do not open Exa, Firecrawl, Brave, or `parallel-cli`. The gate returns, then the review tail runs. The tail can downgrade a claim. It cannot go back to the wallet. After each paid family the run writes the gap list again. An empty list ends the queue, including on `--deep`. If every family has run, failed, been skipped as disconnected, or hit its ceiling, leftover facets are reported as unresolved.
+The spend switch is boring on purpose. Spend is allowed when the invocation said `--balanced`, `--deep`, or `--thorough`, and a named facet stays open under its mode's close test. Thorough's decision-bearing origin requirement is evaluated before the gate returns. Outside that test, "I wish this had a nicer source" is not a gap. An unconfirmed label, a skeptic vote, a missing third origin, dissent, an expired note, and a truncated excerpt do not open Exa, Firecrawl, Brave, or `parallel-cli`. The gate returns, then the review tail runs. The tail can downgrade a claim. It cannot go back to the wallet. After each paid family the run writes the gap list again. An empty list ends the queue, including on `--deep` or `--thorough`. If every family has run, failed, been skipped as disconnected, or hit its ceiling, leftover facets are reported as unresolved.
 
 Firecrawl's concurrency cap is an ops detail you would recognize. This host's Firecrawl free plan allows 2 concurrent jobs, so leftover scrapes stay at 2 even if a later status line claims more. `search --scrape` counts as one leftover op. `scrape --query` is extra credits, so the skill does not use it. Interact is a last resort for one JavaScript-blocked page, and the session has to be stopped. The probe's `firecrawl --status` runs only if Firecrawl work is still needed, and free mode never calls it. That probe is context. It does not count as a leftover op.
 
@@ -258,9 +262,9 @@ last30days answers a different question from a web search. A web search asks wha
 
 A last30days snippet, a video highlight, or a keyword hit is a lead. The body is the thing you can argue from: a TinyFish or host page fetch, caption text, or a fetched X thread.
 
-TinyFish MCP supplies free search/fetch first. If absent or failed, treg's fixed zero-priced TinyFish allowlist supplies those reads; then host web is the fallback. TinyFish OAuth credentials stay with its MCP. treg uses ambient MCP auth and runtime catalog price checks. Failures stay on the free layer and Tools Used names the layer that actually ran.
+treg's fixed zero-priced TinyFish allowlist supplies free search/fetch first. If absent or failed, TinyFish MCP supplies those reads; then host web is the fallback. TinyFish OAuth credentials stay with its MCP. treg uses ambient MCP auth and runtime catalog price checks. Failures stay on the free layer and Tools Used names the layer that actually ran.
 
-`run_web_automation` is the TinyFish tool that clicks around a site. It costs credits. Research reads leave it alone, including on a free run. If a page is so script-heavy that a fetch comes back empty, that is a leftover Firecrawl problem for balanced or deep, and only while the gap is still open.
+`run_web_automation` is the TinyFish tool that clicks around a site. It costs credits. Research reads leave it alone, including on a free run. If a page is so script-heavy that a fetch comes back empty, that is a leftover Firecrawl problem for balanced, deep, or thorough, and only while the gap is still open.
 
 ### The note helper is stdlib on purpose
 
@@ -286,7 +290,7 @@ Three ideas were looked at and left on the shelf. Per-URL tags for caption, thre
 
 ### Copy the skill out
 
-The three trees are named above. They go stale independently, which is why a symlink was the wrong shortcut.
+The six trees are named above. They go stale independently, which is why a symlink was the wrong shortcut.
 
 On 26 September 2026 the live copy and the pack copy matched each other and were ahead of the repo. The README at that point described a symlink. A symlink makes two paths one file. Pointing the live path at the repo would have loaded the older spend rules into Grok. Pointing the repo at the live path would have turned every save into a live edit before the version line was safe. Commit `33bf135` on 27 September replaced that instruction with a copy, and only after the bytes were ready.
 
@@ -297,6 +301,22 @@ The recipe above is what a clean run follows. The next section is where that rec
 ---
 
 ## 5. Lessons Learned
+
+**Route the ticket by the missing fact.**
+A news topic can still be missing Reddit discussion. Sending it only to X because the intent says news is like routing every email with "printer" in the subject to the same queue, even when the fault is the network. The open facet selects treg's endpoint; intent only sets the order in which facets are considered. The routing reference owns that table, so the run card points there instead of copying a second list.
+**Rule:** Match the endpoint to the unresolved facet, regardless of topic intent.
+
+**A status update is not the report.**
+A denied Firecrawl call or a disconnected Exa server can leave the agent narrating what it would try next and then stopping. The gap is still there, and Jan still needs the answer the available evidence supports. Step 4 owns the recovery: skip unavailable families in the same turn, return the gate when the order is exhausted, then finish the verification tail, note procedure, and full Step 6 report. T32 pins that path. The closing line is part of the receipt.
+**Rule:** Never end a run without the report; unresolved gaps belong in Comparison / Gaps.
+
+**The Grok process can outlive its answer.**
+The 19 October headless run exposed a different hang: Grok can reach `end_turn` and still not exit. Empty stdout is not enough to tell whether research is running, finished, or stuck after the answer. The plan keeps the CLI fix out of scope. Smokes need a hard timeout, paid-tool denies, and a read of the host session log when stdout is empty. An `end_turn` entry alone does not prove the Step 6 report was written; inspect the actual report too.
+**Rule:** Bound headless Grok runs with a timeout and recover the evidence from the session log before calling the run a failure or a pass.
+
+**A balance is a shared meter.**
+A balance change tells you what the account spent during an interval. It does not say which overlapping process spent it. Until there is a shared per-call charge helper, timing is the attribution tool: run smokes serially, record balance before and after each paid run, and line up call times and reported costs. An unrelated call inside that interval makes the attribution uncertain. The old manual USD 0.0006 match is useful evidence for that call, not a blanket pass for future runs.
+**Rule:** Compare reported treg spend with an isolated before/after balance window; keep a mismatch explicit until timing explains it.
 
 **A bigger truck does not widen the loading dock.**
 Grok 4.7 on xhigh writes a huge adapter log. The first U1 and U4 attempts died because that log blew past the controller's 10 MB raw cap. The handoff answer was to start the job with `CE_WORK_MAX_RAW_BYTES` at 100 MB, and 200 MB for U4, so the run could finish. That only raises the cap on the way in. `terminalize` still reads `adapter.log` with a hardcoded 10 MB limit, 10485760 bytes, and there is no environment variable for that read. U2 finished with a 20,376,170-byte log and stayed stuck in `authoring`. U3 was 10,522,089 bytes. U5 was 12,837,291 bytes. The recovery was to copy each full log to `/tmp/fr-packets/U2-adapter.log.full`, `U3-adapter.log.full`, and `U5-adapter.log.full`, then cut the controller's copy down to exactly 10 MB so the receipt could be hashed. `RUN_VERIFIED` is real for the code and the 38 tests. It is hashed against the short logs. Think of it like a removals van you paid to carry a full filing cabinet, and a dock scale that still refuses anything over 10 MB. The van and the scale are different machines.
@@ -345,6 +365,10 @@ One `tinyfish.web.fetch` result carried a `hint` field telling the agent to "pro
 **"Last family returned nothing" read two ways.**
 SKILL.md said a facet closes when "the last Step 4 family returned no new URLs." tool-routing.md said an empty treg result keeps the gap and moves on to Exa. Codex found that "last" could mean "the family that just ran." Read that way, an empty treg call would close the gap and skip Exa, which is the fallback the whole ladder exists for. Neither smoke run hit it, because the free layer closed every gap. `5fd242c` spells it out: an empty or failed family keeps the gap open, and only the last eligible family ends the search. Trace T30 covers treg empty, then Exa.
 **Rule:** Write "last" as "the last eligible family in the paid order." An ordinal with two readings is a branch you have not tested.
+
+**A routed endpoint is a vending machine with no price tag until you set the limit.**
+`treg.web.extract` sat on the never-use list because a miss could walk through vendors and bill up to USD 1. Then the owner needed unreadable pages, and the fix was not to trust the endpoint but to cap it: every call carries `X-Treg-Route-Max-Cost`, the amount is reserved first, and a 402 refusal costs nothing. It is the fallback for a page the free fetch could not read, never a search tool.
+**Rule:** A forbidden-for-cost endpoint can come off the list only with a hard per-call cap in the request, a reservation before the call, and cost read from `_treg.charged_micro` after it.
 
 **A test that checks the table cannot see a second table.**
 The ceiling tests compared dollar caps inside the Modes table and the README mirror. Codex added "For `--balanced`, treg may spend USD 1.00 total and USD 0.10 per call" to the routing reference, in memory, and all four ceiling tests stayed green. That is a second rate card the agent could follow. The new test rejects any normative treg dollar ceiling outside the Modes table unless it matches, and it carries that exact mutation as a negative case. Observed catalog prices in the candidate table stay allowed, because they are prices, not permission.
@@ -411,9 +435,9 @@ The U1-U5 hand-off went to Codex `gpt-6.1-sol` at high effort. Mid-run, the inst
 - Ceilings for treg, Exa, Firecrawl, and Brave: SKILL.md's Modes table. README must match. `parallel-cli` caps live in `references/tool-routing.md`.
 - Tests, from the repo root: `python3 -m unittest discover -s tests`. They do not spend credits. Copy parity is opt-in: `FREE_RESEARCH_CHECK_COPIES=1`.
 - Lint a notes folder: `python3 scripts/lint_run_notes.py /absolute/path/to/the-project-folder/runs`. Version-2 problems are errors. Legacy notes are warnings. Exit 0 can still print warnings.
-- Headless smoke: `grok -p` with `--always-approve`, and deny Exa, Brave, Firecrawl, Parallel, `rm`, and `git push`. Launch from a neutral directory so the installed skill is the one that loads. `--permission-mode default` cancels when nobody is there to approve.
-- Edit `skills/free-research/` in this repo. The host copies it to Claude Code, Grok, and skill-pack in U6 after checking all destinations for drift, then runs flagged parity and live smoke checks. Use one install method per host to avoid duplicate commands.
-- The only environment variable is `FREE_RESEARCH_NOTES_DIR`, set in your Grok config. The skill must not print it. Notes land in that folder's `runs/`.
+- Headless smoke: use a hard timeout around `grok -p` with `--always-approve`, and deny Exa, Brave, Firecrawl, Parallel, `rm`, and `git push`. Launch from a neutral directory so the installed skill is the one that loads. `--permission-mode default` cancels when nobody is there to approve.
+- Edit `skills/free-research/` in this repo. Use the portable check/install/check flow for Claude Code, Grok, and Codex; the host updates the pack copies and runs six-copy parity plus live smokes in U6. Use one install method per host to avoid duplicate commands.
+- The only environment variable the research skill reads is `FREE_RESEARCH_NOTES_DIR`, set in your Grok config. The skill must not print it. Notes land in that folder's `runs/`.
 - Money in SKILL.md is written `USD 0.05`, never with a dollar sign before a digit. Claude Code substitutes `$0`, `$1`, and so on with arguments.
 - treg call shapes: TinyFish search takes `query` plus `domain_type` (`web` or `news`) in the `query` slot. Fetch takes `body` `{"urls": [...], "format": "markdown"}`. AnyAPI trims (`max_items`, `fields`) go in `query`, never `body`. Every paid call sends `X-Treg-Route-Max-Cost` in `headers`.
 - Stopping a Codex shell task does not stop the Codex job. Run `codex-companion.mjs cancel <job>`, then check `git status` before relaunching.

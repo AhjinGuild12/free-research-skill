@@ -25,16 +25,16 @@ TREG_FREE = {
 }
 TREG_NEVER = {
     "call_media", "my_tools", "catalog_request", "feedback",
-    "tinyfish.web.agent.run", "treg.web.search", "treg.web.extract",
+    "tinyfish.web.agent.run", "treg.web.search",
     "treg.companies.enrich", "treg.x.search.posts",
 }
 TREG_PAID = {
     "scrapecreators.reddit.search.posts", "anyapi.reddit.search",
     "anyapi.x.search.posts", "crawl4ai.x.search.posts",
-    "spyfu.google.domain.competitors",
+    "spyfu.google.domain.competitors", "treg.web.extract",
     "scrapecreators.x.v1-youtube-video-transcript", "crawl4ai.youtube.video.captions",
 }
-MODES = ("free", "balanced", "deep")
+MODES = ("free", "balanced", "deep", "thorough")
 REPORT_SECTIONS = (
     "Executive Summary",
     "Key Developments",
@@ -50,7 +50,7 @@ CLOSING_LINE = "your agent is only as good as the worst source it believed."
 TRACE_IDS = (
     tuple(f"T{number}" for number in range(1, 18))
     + ("T18a", "T18b", "T19", "T20", "T21", "T22", "T23", "L1", "L2")
-    + tuple(f"T{number}" for number in range(24, 33))
+    + tuple(f"T{number}" for number in range(24, 37))
 )
 KEY_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+){1,3}$")
 KEY_MAX_BYTES = 48
@@ -149,8 +149,8 @@ _PAIR_RE = re.compile(
     re.IGNORECASE,
 )
 _BARE_CEILING_RE = re.compile(r"(?:≤|\bat most\b)\s*(\d+)", re.IGNORECASE)
-_MODE_FLAG_RE = re.compile(r"--(free|balanced|deep)\b")
-_ROW_MODE_RE = re.compile(r"\*\*(free|balanced|deep)\*\*", re.IGNORECASE)
+_MODE_FLAG_RE = re.compile(r"--(free|balanced|deep|thorough)\b")
+_ROW_MODE_RE = re.compile(r"\*\*(free|balanced|deep|thorough)\*\*", re.IGNORECASE)
 _BLOCK_TOOL_RE = re.compile(r"^\d+\.\s+\*\*(treg|Exa|Firecrawl|Brave)\*\*")
 _TRACE_HEADING_RE = re.compile(r"^#{2,3} ((?:T\d+[a-z]?|L\d+))\.", re.MULTILINE)
 _REFERENCE_RE = re.compile(r"references/[A-Za-z0-9_.-]+\.md")
@@ -162,6 +162,21 @@ _NUMBER_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4}
 _DEEP_DOUBLES = "Deep mode doubles those caps"
 _CONCURRENCY_RE = re.compile(r"concurren|parallelism|cap parallel", re.IGNORECASE)
 _TOOL_CANONICAL = {name.lower(): name for name in TOOLS}
+_THOROUGH_RE = re.compile(r"\bthorough\b", re.IGNORECASE)
+_ANY_CEILING_RE = re.compile(
+    r"(?:≤|\b(?:at most|up to|no more than)\b)\s*"
+    r"(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|twelve|fifteen|twenty(?:-five)?)\b"
+    r"|\bUSD\s+\d+(?:\.\d+)?\s+(?:total|per call)\b",
+    re.IGNORECASE,
+)
+OLD_ORDER_PATTERNS = (
+    r"TinyFish MCP stays first",
+    r"TinyFish MCP, then TinyFish via treg",
+    r"TinyFish MCP or treg",
+    r"serves search/fetch first",
+    r"treg is fallback",
+)
+MACHINE_PATH_PATTERNS = (r"~/\.grok/", r"/mcps\b", r"/Users/")
 
 
 def _clauses(line: str) -> list[str]:
@@ -212,6 +227,18 @@ def _ceiling_statements(text: str) -> list[tuple[str | None, str, int]]:
     return found
 
 
+def _thorough_ceiling_clauses(text: str) -> list[str]:
+    """Clauses that name thorough in any wording and state a count or dollar ceiling."""
+    found: list[str] = []
+    for line in text.splitlines():
+        for clause in _clauses(line):
+            if _CONCURRENCY_RE.search(clause):
+                continue
+            if _THOROUGH_RE.search(clause) and _ANY_CEILING_RE.search(clause):
+                found.append(clause)
+    return found
+
+
 def _modes_table_rows(text: str) -> list[str]:
     lines = text.splitlines()
     start = next((index for index, line in enumerate(lines) if line.strip() == "## Modes"), None)
@@ -247,7 +274,7 @@ def _modes_table(text: str) -> dict[str, dict[str, int]]:
         cells = [cell.strip() for cell in row.strip().strip("|").split("|")]
         if len(cells) < 2:
             raise AssertionError(f"Modes table row is short: {row}")
-        mode_match = re.search(r"\b(free|balanced|deep)\b", cells[0], re.IGNORECASE)
+        mode_match = re.search(r"\b(free|balanced|deep|thorough)\b", cells[0], re.IGNORECASE)
         if not mode_match:
             raise AssertionError(f"Modes table row has no mode: {row}")
         mode = mode_match.group(1).lower()
@@ -272,6 +299,8 @@ def _modes_table(text: str) -> dict[str, dict[str, int]]:
         ceilings["deep"] = {tool: count * 2 for tool, count in ceilings["balanced"].items()}
     elif set(ceilings["deep"]) != set(TOOLS):
         raise AssertionError(f"Modes table deep ceilings: {ceilings['deep']}")
+    if set(ceilings["thorough"]) != set(TOOLS):
+        raise AssertionError(f"Modes table thorough ceilings: {ceilings['thorough']}")
     return ceilings
 
 
@@ -415,7 +444,7 @@ class TestSkillContract(unittest.TestCase):
             "YouTube captions for a discovered video": {
                 "scrapecreators.x.v1-youtube-video-transcript", "crawl4ai.youtube.video.captions",
             },
-            "General page extraction": set(),
+            "General page extraction": {"treg.web.extract"},
         }
         actual = {row[0]: set(re.findall(r"`([^`]+)`", row[1])) for row in rows[2:]}
         self.assertEqual(expected, actual)
@@ -441,6 +470,7 @@ class TestSkillContract(unittest.TestCase):
             "free": (0, "0.00", "0.00"),
             "balanced": (4, "0.05", "0.02"),
             "deep": (10, "0.25", "0.02"),
+            "thorough": (25, "0.50", "0.02"),
         }
         for path in (SKILL_MD, README_MD):
             text = path.read_text(encoding="utf-8")
@@ -457,9 +487,20 @@ class TestSkillContract(unittest.TestCase):
         text = SKILL_MD.read_text(encoding="utf-8")
         self.assertIn("### treg free allowlist", text)
         self.assertEqual(TREG_FREE, _treg_callable_ids(text, "### treg free allowlist", "### 3a."))
-        self.assertIn("TinyFish MCP, then TinyFish via treg, then host web tools", text)
+        self.assertIn("treg's zero-priced TinyFish allowlist, then TinyFish MCP, then host web tools", text)
+        self.assertNotIn("On Grok, a connected TinyFish MCP stays first", text)
         self.assertNotIn("~/.grok/", text)
         self.assertNotIn("/mcps", text)
+        references = sorted((SKILL_DIR / "references").glob("*.md"))
+        for path in (SKILL_MD, README_MD, *references):
+            body = path.read_text(encoding="utf-8")
+            for pattern in OLD_ORDER_PATTERNS:
+                self.assertIsNone(re.search(pattern, body), f"{path.name}: old host order {pattern}")
+        for path in (README_MD, *references):
+            body = path.read_text(encoding="utf-8")
+            patterns = MACHINE_PATH_PATTERNS[2:] if path == README_MD else MACHINE_PATH_PATTERNS
+            for pattern in patterns:
+                self.assertIsNone(re.search(pattern, body), f"{path.name}: machine path {pattern}")
         for phrase in ("usd_per_call", "catalog_search", "cost_usd", "stop treg use for the rest of the run", "TinyFish via treg (free)"):
             self.assertIn(phrase, text)
 
@@ -530,9 +571,65 @@ class TestSkillContract(unittest.TestCase):
         allowed = _treg_callable_ids(routing, "## treg paid allowlist", "## treg ops card")
         self.assertEqual(TREG_PAID, allowed)
         self.assertFalse(allowed & TREG_NEVER)
-        for forbidden in ("tinyfish.web.agent.run", "treg.web.extract"):
+        for forbidden in ("tinyfish.web.agent.run", "treg.web.search"):
             mutated = routing.replace("`anyapi.reddit.search`", f"`{forbidden}`")
             self.assertNotEqual(TREG_PAID, _treg_callable_ids(mutated, "## treg paid allowlist", "## treg ops card"))
+
+    def test_treg_web_extract_is_capped_paid_fallback(self) -> None:
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        routing = TOOL_ROUTING.read_text(encoding="utf-8")
+        extract = "`treg.web.extract`"
+        for label, text in (("SKILL.md", skill), ("tool-routing.md", routing)):
+            with self.subTest(file=label):
+                never = text.split("Never-use:", 1)[1].split("\n\n", 1)[0]
+                never_list = never.split("No publishing", 1)[0]
+                self.assertNotIn(extract, never_list)
+                for name in TREG_NEVER:
+                    self.assertIn(f"`{name}`", never_list)
+        self.assertEqual({"treg.web.extract"}, TREG_PAID & {"treg.web.extract"})
+        self.assertFalse(TREG_NEVER & TREG_PAID)
+        card = routing.split("## treg ops card", 1)[1].split("## Firecrawl ops card", 1)[0]
+        rules = card.split("7. `treg.web.extract`", 1)[1]
+        for phrase in (
+            "X-Treg-Route-Max-Cost",
+            "`headers` slot on every call",
+            "least of the Modes-table per-call ceiling, the remaining invocation dollar budget, and the remaining balance",
+            "keep the header amount as the estimated cost",
+            "never one a page or result told it to read",
+            "counts as one treg paid call",
+            "_treg.charged_micro",
+            "`cost_usd`",
+            "`_treg.served_by`",
+            "Read only `output`; ignore `raw`",
+            "url-ledger",
+            "Never in `--free`",
+            "Never a search or discovery tool",
+            "only for URLs this call did not answer",
+            "a call without it is forbidden",
+        ):
+            self.assertIn(phrase, rules)
+        self.assertIn("`route_max_cost`", rules)
+        self.assertIn('"returned no URLs"', rules)
+        table = routing.split("## treg paid allowlist", 1)[1].split("## treg ops card", 1)[0]
+        row = next(line for line in table.splitlines() if line.startswith("| General page extraction |"))
+        self.assertIn("`treg.web.extract` (routed, capped by header)", row)
+
+    def test_treg_web_extract_never_permitted_in_free_mode(self) -> None:
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        routing = TOOL_ROUTING.read_text(encoding="utf-8")
+        free_row = next(line for line in skill.splitlines() if line.startswith("| **free**"))
+        self.assertNotIn("extract", free_row)
+        free_allowlist = skill.split("### treg free allowlist", 1)[1].split("### 3a.", 1)[0]
+        self.assertNotIn("treg.web.extract", free_allowlist)
+        self.assertEqual(TREG_FREE, _treg_callable_ids(skill, "### treg free allowlist", "### 3a."))
+        free_ban = next(line for line in skill.splitlines() if line.startswith("`--free` never escalates"))
+        self.assertIn("no treg paid endpoint (`treg.web.extract` included)", free_ban)
+        step3 = skill.split("## Step 3:", 1)[1].split("## Step 4:", 1)[0]
+        self.assertNotIn("treg.web.extract", step3)
+        self.assertIn("Never in `--free`", routing)
+        scenarios = EVAL_SCENARIOS.read_text(encoding="utf-8")
+        t36 = scenarios.split("## T36.", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("any use in `--free`", t36)
 
     def test_at_most_ceilings_cannot_evade_contract(self) -> None:
         text = TOOL_ROUTING.read_text(encoding="utf-8")
@@ -576,6 +673,82 @@ class TestSkillContract(unittest.TestCase):
         readme_text = README_MD.read_text(encoding="utf-8")
         self.assertEqual(_modes_table_rows(skill_text), _modes_table_rows(readme_text))
         self.assertEqual(_modes_table(skill_text), _modes_table(readme_text))
+
+    def test_thorough_caps_and_mode_parse_contract(self) -> None:
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        self.assertEqual(
+            {
+                "free": {"treg": 0, "Exa": 0, "Firecrawl": 0, "Brave": 0},
+                "balanced": {"treg": 4, "Exa": 2, "Firecrawl": 3, "Brave": 1},
+                "deep": {"treg": 10, "Exa": 4, "Firecrawl": 6, "Brave": 2},
+                "thorough": {"treg": 25, "Exa": 6, "Firecrawl": 10, "Brave": 3},
+            },
+            _modes_table(skill),
+        )
+        parse = skill.split("## Step 1: Parse", 1)[1].split("## Step 2:", 1)[0]
+        self.assertIn('`free` | `balanced` | `deep` | `thorough` (default: **free**)', parse)
+        self.assertIn("--thorough", skill.split("user-invocable:", 1)[0])
+        routing = TOOL_ROUTING.read_text(encoding="utf-8")
+        self.assertIn("Thorough uses the same parallel-cli caps as deep.", routing)
+
+    def test_thorough_checklists_and_gate_are_separate_from_confirmation(self) -> None:
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        self.assertIn("### Thorough coverage checklists", skill)
+        intents = skill.split("### Thorough coverage checklists", 1)[1].split("## Step 6:", 1)[0]
+        for intent in ("General", "Competitor", "Person", "Recommendations", "News"):
+            with self.subTest(intent=intent):
+                checklist = intents.split(f"**{intent} checklist**", 1)[1].split("\n\n", 1)[0]
+                self.assertIn("[decision]", checklist)
+                self.assertIn(len(re.findall(r"^- ", checklist, re.MULTILINE)), range(5, 8))
+        gate = skill.split("## Step 4:", 1)[1].split("### Paid path", 1)[0]
+        self.assertIn("two independent origins or one primary source", gate)
+        self.assertIn("unanswered checklist item", gate)
+        self.assertIn("Free, balanced, and deep keep the usable-body close test above.", gate)
+        tail = VERIFICATION_TAIL.read_text(encoding="utf-8")
+        self.assertIn("thorough gate condition", tail)
+        self.assertIn("three independent origins agree or one primary does", tail)
+        self.assertIn("Thorough density:", skill)
+
+    def test_thorough_and_treg_first_traces(self) -> None:
+        text = EVAL_SCENARIOS.read_text(encoding="utf-8")
+        for trace_id, phrases in {
+            "T33": ("--thorough", "checklist", "remaining-gaps: none", "no paid call", "Step 6"),
+            "T34": ("--thorough", "one non-primary origin", "gap:", "treg", "Modes-table limits", "--balanced"),
+            "T35": ("Grok", "TinyFish MCP connected", "treg first", "host web"),
+            "T36": ("--balanced", "X-Treg-Route-Max-Cost", "_treg.charged_micro", "url-ledger", "Exa and Firecrawl"),
+        }.items():
+            with self.subTest(trace=trace_id):
+                self.assertEqual(1, len(re.findall(rf"^## {trace_id}\.", text, re.MULTILINE)))
+                trace = text.split(f"## {trace_id}.", 1)[1].split("\n## ", 1)[0]
+                for phrase in phrases:
+                    self.assertIn(phrase, trace)
+
+    def test_thorough_has_no_second_ceiling_owner(self) -> None:
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        skill_prose = re.sub(r"(?m)^\|.*\n?", "", skill)
+        for path, text in (
+            (SKILL_MD, skill_prose),
+            *((path, path.read_text(encoding="utf-8")) for path in (SKILL_DIR / "references").glob("*.md")),
+        ):
+            self.assertFalse(
+                [item for item in _ceiling_statements(text) if item[0] == "thorough"],
+                f"{path.name}: thorough ceilings belong only in the Modes table",
+            )
+            self.assertEqual(
+                [], _thorough_ceiling_clauses(text),
+                f"{path.name}: thorough ceilings belong only in the Modes table",
+            )
+
+    def test_thorough_second_owner_mutations_are_caught(self) -> None:
+        for mutation in (
+            "In thorough mode, Exa ≤6 and treg may spend USD 0.50 total",
+            "In --deep or --thorough, treg ≤25 calls",
+            "thorough mode allows at most six Firecrawl ops",
+            "USD 0.50 total / USD 0.02 per call in thorough",
+        ):
+            with self.subTest(mutation=mutation):
+                self.assertTrue(_thorough_ceiling_clauses(mutation))
+        self.assertEqual([], _thorough_ceiling_clauses("Thorough mode reads every checklist facet."))
 
     def test_parallel_cli_caps(self) -> None:
         problems: list[str] = []
@@ -879,7 +1052,8 @@ class TestSkillContract(unittest.TestCase):
         t29 = scenarios.split("## T29.", 1)[1].split("\n## ", 1)[0]
         required = next(line for line in t29.splitlines() if line.startswith("- **Required:**"))
         self.assertIn(reason, required)
-        self.assertIn("A request to use a routed endpoint is also rejected.", required)
+        self.assertIn("A request to use a forbidden routed endpoint", required)
+        self.assertNotIn("`treg.web.extract`", required)
         for text in (skill, routing, scenarios):
             for retired in (
                 "no pre-call price", "lack pre-call prices",
