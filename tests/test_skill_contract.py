@@ -65,8 +65,8 @@ TREG_FACET_ROWS: dict[str, tuple[tuple[str, ...], str]] = {
         "0.00015 / 0.00015",
     ),
     "Price: Amazon search": (
-        ("crawl4ai.amazon.search.products", "justoneapi.x.amazon-search-products-v1"),
-        "0.0135 / 0.0148",
+        ("justoneapi.x.amazon-search-products-v1",),
+        "0.0148",
     ),
     "Price: Walmart product (id known)": (
         ("crawl4ai.walmart.product.detail",),
@@ -480,14 +480,22 @@ def _assert_facet_price_table(routing: str, ceiling: Decimal) -> None:
             raise AssertionError(f"{label}: endpoints {got_endpoints} != {endpoints}")
         if by_label[label][1] != price:
             raise AssertionError(f"{label}: price {by_label[label][1]!r} != {price!r}")
-    for label, _endpoints, price in rows:
+    for label, endpoints, price in rows:
         if label == "General page extraction":
             continue
         if not re.fullmatch(r"\d+(?:\.\d+)?(?: / \d+(?:\.\d+)?)*(?: per (?:success|call))?", price):
             raise AssertionError(f"{label}: malformed fixed-price cell {price!r}")
-        for amount in re.findall(r"\d+(?:\.\d+)?", price):
-            if Decimal(amount) > ceiling:
-                raise AssertionError(f"{label}: USD {amount} is above the per-call ceiling {ceiling}")
+        endpoint_ids = re.findall(r"`([^`]+)`", endpoints)
+        amounts = re.findall(r"\d+(?:\.\d+)?", price)
+        if len(endpoint_ids) != len(amounts):
+            raise AssertionError(f"{label}: endpoint and price counts differ")
+        for endpoint, amount in zip(endpoint_ids, amounts):
+            reservation = Decimal(amount) * (4 if endpoint.startswith("crawl4ai.") else 1)
+            if reservation > ceiling:
+                raise AssertionError(
+                    f"{label}: {endpoint} reservation USD {reservation} "
+                    f"is above the per-call ceiling {ceiling}"
+                )
     for endpoint_id in _treg_callable_ids(routing, "## treg paid allowlist", "## treg ops card"):
         if endpoint_id.startswith(TREG_ROW_BILLED_PREFIXES) or endpoint_id in TREG_PRICE_EXCLUDED:
             raise AssertionError(f"excluded endpoint in allowlist: {endpoint_id}")
@@ -645,6 +653,9 @@ class TestSkillContract(unittest.TestCase):
             self.assertEqual(ceiling, Decimal(limits[mode][2]))
         routing = TOOL_ROUTING.read_text(encoding="utf-8")
         _assert_facet_price_table(routing, ceiling)
+        card = routing.split("## treg ops card", 1)[1].split("## Firecrawl ops card", 1)[0]
+        self.assertIn("For any `crawl4ai.*` endpoint, reserve 4x its catalog price", card)
+        self.assertIn("The reserved amount must be at or under the Modes-table per-call ceiling or skip the endpoint.", card)
         block = _paid_allowlist_block(routing)
         for phrase in (
             IDENTIFIER_FIRST_RULE,
@@ -686,14 +697,28 @@ class TestSkillContract(unittest.TestCase):
         with self.assertRaises(AssertionError):
             _assert_facet_price_table(without_reviews, ceiling)
 
+    def test_crawl4ai_amazon_reservation_exceeds_per_call_ceiling(self) -> None:
+        routing = TOOL_ROUTING.read_text(encoding="utf-8")
+        ceiling = Decimal(_treg_limits(SKILL_MD.read_text(encoding="utf-8"))["balanced"][2])
+        mutated = routing.replace(
+            "## treg ops card",
+            "| Price: Extra Amazon | `crawl4ai.amazon.search.products` | 0.0135 |\n\n## treg ops card",
+            1,
+        )
+        with self.assertRaisesRegex(AssertionError, r"reservation USD 0\.0540 is above the per-call ceiling"):
+            _assert_facet_price_table(mutated, ceiling)
+
     def test_fixed_price_cells_parse_integers_and_reject_malformed_prices(self) -> None:
         routing = TOOL_ROUTING.read_text(encoding="utf-8")
         ceiling = Decimal(_treg_limits(SKILL_MD.read_text(encoding="utf-8"))["balanced"][2])
         for price in ("0", "0 / 0.001 per call"):
             with self.subTest(price=price):
+                endpoints = "`crawl4ai.example.extra`"
+                if " / " in price:
+                    endpoints += " or `anyapi.example.extra`"
                 mutated = routing.replace(
                     "## treg ops card",
-                    f"| Price: Extra | `crawl4ai.example.extra` | {price} |\n\n## treg ops card",
+                    f"| Price: Extra | {endpoints} | {price} |\n\n## treg ops card",
                     1,
                 )
                 _assert_facet_price_table(mutated, ceiling)
@@ -707,9 +732,12 @@ class TestSkillContract(unittest.TestCase):
             ("0.001.2", "malformed fixed-price cell"),
         ):
             with self.subTest(price=price):
+                endpoints = "`crawl4ai.example.extra`"
+                if " / " in price:
+                    endpoints += " or `anyapi.example.extra`"
                 mutated = routing.replace(
                     "## treg ops card",
-                    f"| Price: Extra | `crawl4ai.example.extra` | {price} |\n\n## treg ops card",
+                    f"| Price: Extra | {endpoints} | {price} |\n\n## treg ops card",
                     1,
                 )
                 with self.assertRaisesRegex(AssertionError, error):
@@ -1030,6 +1058,7 @@ class TestSkillContract(unittest.TestCase):
             "T37": ("--balanced", "crawl4ai.tiktok.search.videos", "Titles-only rows stay leads", "Exa does not"),
             "T38": (
                 "Google Shopping", "crawl4ai.google.serp.shopping", "Amazon",
+                "justoneapi.x.amazon-search-products-v1", "fixed USD 0.0148",
                 "returned nothing", "Nonempty but unusable Shopping variant",
                 "irrelevant listings or listings with no prices", "skip Amazon",
                 "--free", FREE_FOLLOWUP_LINE,

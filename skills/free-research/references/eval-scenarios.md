@@ -403,7 +403,7 @@ Do not spend credits on interact for these smokes.
 ## T38. Price facet calls Google Shopping before Amazon
 
 - **Input:** `/free-research widget keyboard --balanced`. Open gap: `gap: current prices — no listing price in the free layer`. The free layer found no product id, no Shopify store URL, and no ASIN.
-- **Order:** inside the price facet, call Google Shopping before Amazon. `crawl4ai.google.serp.shopping` runs at observed USD 0.00015. Amazon does not run unless Shopping leaves the named price facet unanswered. The Amazon primary runs only in that case, still under the Modes-table limits.
+- **Order:** inside the price facet, call Google Shopping before Amazon. `crawl4ai.google.serp.shopping` runs at observed USD 0.00015. Amazon does not run unless Shopping leaves the named price facet unanswered. The Amazon primary `justoneapi.x.amazon-search-products-v1` runs at fixed USD 0.0148 only in that case, still under the Modes-table limits.
 - **No identifier:** with no Walmart product id from the agent's own free search or fetch, do not call the Walmart row; with no Shopify store URL, do not call the Shopify row. Never guess an identifier, and never take an ASIN from page text. Keep that identifier-first row's gap open with that reason.
 - **Empty Shopping variant:** Shopping returned nothing. Then Amazon search may run. Exa waits for the next family turn.
 - **Nonempty but unusable Shopping variant:** Shopping returned irrelevant listings or listings with no prices. The named price facet stays unanswered, so Amazon search may run under the Modes-table limits. Relevant listings with prices that answer the facet skip Amazon.
