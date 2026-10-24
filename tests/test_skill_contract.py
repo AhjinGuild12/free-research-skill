@@ -817,6 +817,8 @@ class TestSkillContract(unittest.TestCase):
             "claude": Path.home() / ".claude" / "skills" / "free-research",
             "live": Path.home() / ".grok" / "skills" / "free-research",
             "pack": Path.home() / "Projects" / "skill-pack" / "grok" / "free-research",
+            "codex": Path.home() / ".codex" / "skills" / "free-research",
+            "codex_pack": Path.home() / "Projects" / "skill-pack" / "codex" / "free-research",
         }
         inventories = {label: _file_inventory(path) for label, path in copies.items()}
         problems: list[str] = []

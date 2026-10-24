@@ -145,7 +145,7 @@ python3 scripts/lint_run_notes.py /absolute/path/to/the-project-folder/runs
 
 ## Manual (developer)
 
-Copy the repo skill directory onto the live skills-folder copy and the skill-pack copy, including `references/` and `scripts/`. `scripts/run_note.py` is the skill-local note helper. Do not symlink this repo over a newer live tree. The installed plugin checkout is a separate publish and is not updated by that copy.
+Keep all six copies in sync: repo (`skills/free-research/`), Claude Code (`~/.claude/skills/free-research`), Grok live (`~/.grok/skills/free-research`), Grok pack (`~/Projects/skill-pack/grok/free-research`), Codex (`~/.codex/skills/free-research`), and Codex pack (`~/Projects/skill-pack/codex/free-research`). Copy the complete skill tree, including `references/` and `scripts/`. `scripts/run_note.py` is the skill-local note helper. Do not symlink this repo over a newer live tree. The installed plugin checkout is a separate publish and is not updated by that copy.
 
 ```bash
 git clone https://github.com/AhjinGuild12/free-research-skill.git
