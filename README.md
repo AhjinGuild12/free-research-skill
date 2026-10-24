@@ -1,6 +1,6 @@
 # /free-research
 
-Free-first multi-source research for AI agents. Community pulse from [last30days](https://github.com/mvanhorn/last30days-skill), then TinyFish MCP, TinyFish via treg, or host search and fetch. Paid escalation waits on the remaining-gap gate: treg first, then Exa, Firecrawl, Brave, and opted-in `parallel-cli`.
+Free-first multi-source research for AI agents. Community pulse from [last30days](https://github.com/mvanhorn/last30days-skill), then treg's zero-priced TinyFish allowlist, TinyFish MCP, and host search and fetch in that fallback order on every host. Paid escalation waits on the remaining-gap gate: treg first, then Exa, Firecrawl, Brave, and opted-in `parallel-cli`.
 
 This repo is a skill, not a search engine. It does not bundle last30days or TinyFish.
 
@@ -8,30 +8,25 @@ The runtime spec lives in [skills/free-research/SKILL.md](skills/free-research/S
 
 ## Install
 
-| Surface | Install |
-| --- | --- |
-| **Claude Code** | Copy `skills/free-research/` from this checkout to `~/.claude/skills/free-research/` (commands below) |
-| **Grok** (xAI Build CLI) | `grok plugin marketplace add AhjinGuild12/free-research-skill` then `grok plugin install free-research` |
-| **Codex, Cursor, Copilot, Gemini CLI, or any [Agent Skills](https://agentskills.io) host** | `npx skills add AhjinGuild12/free-research-skill -g` |
-
-From the repo root, install the complete skill tree for Claude Code:
+On a Mac, run these from the repo root:
 
 ```bash
-mkdir -p ~/.claude/skills/free-research
-cp -R skills/free-research/. ~/.claude/skills/free-research/
+scripts/install.sh --check
+scripts/install.sh --with-treg
+scripts/install.sh --check
 ```
 
-Include `references/` and `scripts/`. Inspect an existing destination for newer edits before replacing it. Start a new Claude Code session and run `/free-research <topic>`. Updates use the same copy after pulling this repo.
+`--check` reports each host's installed skill version, last30days presence, treg MCP configuration, older duplicate installs, and whether `FREE_RESEARCH_NOTES_DIR` is set. It reports presence only and never prints that variable's value or a token. Check mode does not install or change anything.
 
-Grok also accepts a direct install:
+`scripts/install.sh` copies the complete `skills/free-research/` tree, including `references/` and `scripts/`, into the user skills folder for each supported host present: Claude Code (`~/.claude/skills/free-research/`), Grok (`~/.grok/skills/free-research/`), and Codex (`~/.codex/skills/free-research/`). A host is detected by its CLI on PATH or its existing config directory. Copies are regular files, without symlinks. It names and refuses a destination file newer than the repo copy unless you pass `--force`; inspect and reconcile those edits before forcing an update.
 
-```bash
-grok plugin install AhjinGuild12/free-research-skill
-```
+`--with-treg` also adds the treg MCP connection through each available host CLI. It reads `TREG_TOKEN` from the environment; supply the token there before running it. The token is never printed or stored in the repo or skill files. Codex stores an environment-variable reference; Claude Code and Grok store the auth header in their own user config. A missing token leaves MCP setup pending, without making MCP add calls. An existing treg configuration is skipped unless `--force` is supplied. A detected config directory without its CLI can receive the skill copy, but MCP setup needs that host CLI. Plain `scripts/install.sh` copies the skill without configuring treg.
 
-Add `--trust` to skip the install confirmation. Update later with `grok plugin update free-research` or `npx skills update free-research -g`.
+`--force` permits replacement of newer destination files and, with `--with-treg`, replacement of an existing treg MCP configuration. It is an explicit overwrite choice, not needed for an ordinary update. After pulling repo updates, repeat the check/install/check flow and start a new host session.
 
-Claude Code does not dedupe copy-out, marketplace plugin, and `npx skills` installs. Use one install method per host or `/free-research` will show twice. This setup uses copy-out; remove an older duplicate through its original install method.
+**Grok duplicate warning:** the marketplace plugin can leave an older v1.0.0 install alongside the native skill copy. Check mode flags that duplicate; removal stays your choice through its original install method. Use one install method per host to avoid duplicate `/free-research` commands. The script does not update the separate skill-pack trees; keep the six-copy parity workflow below.
+
+Other [Agent Skills](https://agentskills.io) hosts such as Cursor, Copilot, and Gemini CLI can use `npx skills add AhjinGuild12/free-research-skill -g`. The portable script supports Claude Code, Grok, and Codex on macOS.
 
 ## Prerequisites
 
@@ -46,15 +41,15 @@ A full free run needs both companions. This plugin does not include them.
 
    or `npx skills add mvanhorn/last30days-skill -g`
 
-2. **TinyFish MCP or treg** - free search and fetch
+2. **treg, with TinyFish MCP fallback** - free search and fetch
 
    - Grok: `grok plugin install tinyfish --trust`, then `/mcps` → tinyfish → Authenticate
    - Claude Code: `claude mcp add --transport http tinyfish https://agent.tinyfish.ai/mcp`
-   - Or use an already connected treg MCP. Its allowlisted TinyFish search, fetch, news, and publications endpoints need no key and must be catalog-priced at zero. On Grok, TinyFish MCP stays first; treg is fallback. This repo does not install or authenticate treg.
+   - Configure treg with the install flow above, or use an already connected treg MCP. Its allowlisted TinyFish search, fetch, news, and publications endpoints need no provider key and must be catalog-priced at zero. Every host tries treg first, then TinyFish MCP, then host web. A nonzero charge on a free endpoint still disables treg and switches directly to host web.
 
 If last30days fails, or both TinyFish MCP and treg are unavailable, the skill still loads. It labels the gap under **Tools Used** and continues with free host tools. It does not pretend those tools ran.
 
-**treg paid endpoints**, **Exa**, **Firecrawl**, and **Brave Search** are optional paid layers for `--balanced` / `--deep` only. They never run in free mode. treg verifies price before each call and records actual cost or a labeled catalog estimate; an unexpected charge on a free endpoint stops treg for that run and switches to host web.
+**treg paid endpoints**, **Exa**, **Firecrawl**, and **Brave Search** are optional paid layers for `--balanced` / `--deep` / `--thorough` only. They never run in free mode. treg verifies price before each call and records actual cost or a labeled catalog estimate; an unexpected charge on a free endpoint stops treg for that run and switches to host web.
 
 ## Examples
 
@@ -64,14 +59,15 @@ If last30days fails, or both TinyFish MCP and treg are unavailable, the skill st
 /free-research Claude Code vs Codex
 ```
 
-Default. Community pulse first, then TinyFish search (3–5 angles) and `fetch_content` on the top pages. No paid APIs.
+Default. Community pulse first, then treg free search (3–5 angles) and free fetch on the top pages, falling back to TinyFish MCP and then host web. No paid APIs.
 
 Tools Used looks like:
 
 ```text
 - last30days — community pulse (free)
-- TinyFish search × 4 — discovery angles (free)
-- TinyFish fetch_content — 8 pages (free)
+- TinyFish via treg (free) — tinyfish.web.search × 4, discovery angles, USD 0.00
+- TinyFish via treg (free) — tinyfish.web.fetch, 8 pages, USD 0.00
+- treg spend total — USD 0.00
 - Exa — not used
 - Firecrawl — not used
 - Brave — not used
@@ -89,8 +85,8 @@ Tools Used after a real escalate:
 
 ```text
 - last30days — community pulse (free)
-- TinyFish search × 5 — discovery angles (free)
-- TinyFish fetch_content — 10 pages (free)
+- TinyFish via treg (free) — tinyfish.web.search × 5, discovery angles, USD 0.00
+- TinyFish via treg (free) — tinyfish.web.fetch, 10 pages, USD 0.00
 - treg paid - skipped: no eligible priced route for this gap
 - Exa — gap queries on the launch timeline (deep, ≤4)
 - Firecrawl — leftover pages the free fetch could not read (deep, ≤6 leftover ops)
@@ -99,7 +95,7 @@ Tools Used after a real escalate:
 
 If the free layer already closed the gaps, the report says treg paid was skipped, makes no `balance` call, and does not call Exa, Firecrawl, or Brave.
 
-When Claude Code uses treg's free layer, Tools Used names each endpoint under `TinyFish via treg (free)` with cost USD 0 or a labeled catalog estimate, plus the treg spend total. A paid person gap might use `anyapi.x.search.posts` after a catalog price check; it lists the actual cost and stops the ladder if a usable body closes the gap. Search snippets remain leads.
+When any host uses treg's free layer, Tools Used names each endpoint under `TinyFish via treg (free)` with cost USD 0.00 or a labeled catalog estimate, plus the treg spend total. A paid person gap might use `anyapi.x.search.posts` after a catalog price check; it lists the actual cost and stops the ladder if a usable body closes the gap. Search snippets remain leads.
 
 ### Force free, even when coverage is thin
 
@@ -109,13 +105,22 @@ When Claude Code uses treg's free layer, Tools Used names each endpoint under `T
 
 Never calls treg paid endpoints, `balance`, Exa, Firecrawl, `firecrawl --status`, Brave, or `parallel-cli`. If the pass is thin, the report offers `--balanced` or `--deep`.
 
+### Thorough mode — cover the intent checklist
+
+```text
+/free-research --thorough Claude Code vs Codex
+```
+
+Escalate free → balanced → deep → thorough when the previous report is not enough. Thorough builds the full intent checklist before the gate. Decision-bearing facets need two independent origins or one primary source; unanswered items and unmet origin requirements stay named gaps. It uses the same paid order under the table's caps and the same `parallel-cli` caps as deep, still requiring explicit Parallel opt-in. If free bodies meet the checklist and origin bar, it spends nothing. The unchanged verification tail still requires three origins or a primary to confirm a claim. The report carries concrete sourced detail and checklist coverage under Comparison / Gaps, with unmet facets listed honestly. Section order and the closing line stay fixed.
+
 ## Modes
 
 | Mode | Tools | Credits |
 |------|--------|---------|
-| **free** (default) | last30days + TinyFish MCP or treg free allowlist, then host web | Zero paid; treg ≤0 calls / USD 0.00 total / USD 0.00 per call (paid endpoints) |
+| **free** (default) | last30days + treg free allowlist, then TinyFish MCP, then host web | Zero paid; treg ≤0 calls / USD 0.00 total / USD 0.00 per call (paid endpoints) |
 | **balanced** | free layer + sequential paid tools on remaining gaps (treg ≤4 calls / USD 0.05 total / USD 0.02 per call; Exa ≤2, Firecrawl ≤3 leftover ops, Brave ≤1) | Minimal paid |
 | **deep** | same order; treg ≤10 calls / USD 0.25 total / USD 0.02 per call; Exa ≤4, Firecrawl ≤6 leftover ops, Brave ≤2; stop when remaining gaps empty | Paid, capped |
+| **thorough** | same order; treg ≤25 calls / USD 0.50 total / USD 0.02 per call; Exa ≤6, Firecrawl ≤10 leftover ops, Brave ≤3; checklist coverage and decision-bearing facet bar | Paid, capped |
 
 This table mirrors [skills/free-research/SKILL.md](skills/free-research/SKILL.md), the single owner of treg, Exa, Firecrawl, and Brave ceilings. treg limits count paid-endpoint attempts, including failures; free-allowlist calls do not consume that quota. [skills/free-research/references/tool-routing.md](skills/free-research/references/tool-routing.md) owns the `parallel-cli` caps.
 
@@ -140,7 +145,7 @@ python3 scripts/lint_run_notes.py /absolute/path/to/the-project-folder/runs
 
 - Not last30days. Install that separately for a pure community pass.
 - Not TinyFish. Auth lives on the TinyFish MCP, not in this repo.
-- Not an Exa, Firecrawl, or Brave wrapper. Those run only after the decision gate, and only in `--balanced` / `--deep`.
+- Not an Exa, Firecrawl, or Brave wrapper. Those run only after the decision gate, and only in `--balanced` / `--deep` / `--thorough`.
 - Not a bundled search engine, MCP server, or `.mcpb` / `.skill` release factory.
 
 ## Manual (developer)

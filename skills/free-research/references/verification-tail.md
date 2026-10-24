@@ -12,6 +12,8 @@ One evidence label per finding, in this order: the confirmation bar, then the sk
 
 Write the tally before the dissent sweep. Write the sweep result, or an explicit skip, before the vault note. Write the vault note only after that sweep or skip, using the Vault note procedure in SKILL.md. The note is not proof and not a gap. If a reference failed to load, do not write the note. Then return the report in SKILL.md Step 6.
 
+Thorough's decision-bearing facet requirement is a thorough gate condition owned by SKILL.md Step 4, evaluated before this tail. It does not lower the confirmation bar below: two independent non-primary origins can close a thorough facet while the finding stays unconfirmed. This tail cannot reopen the gate.
+
 ## Confirmation bar
 
 **Confirmed** only when full text supports the finding and either three independent origins agree or one primary does. Every other finding is **unconfirmed**. An unreviewed finding is unconfirmed.

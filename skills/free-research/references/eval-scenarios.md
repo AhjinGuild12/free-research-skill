@@ -356,3 +356,26 @@ Do not spend credits on interact for these smokes.
 - **Input:** `--balanced`; two paid treg calls leave the Reddit gap open; Exa disconnected and Firecrawl denied by the host. Brave is disconnected; no Parallel opt-in.
 - **Required:** skip both in the same turn without waiting, then skip ineligible Brave and Parallel; mark the gate returned. Follow SKILL.md Step 4's completion rule through the verification tail and vault note procedure under its normal rules. No extra paid call or retry.
 - **Report:** write the full Step 6 report with Tools Used recording actual treg endpoints, costs and spend total, skipped families and reasons, and vault-note outcome; include the closing line. Keep the Reddit gap unresolved under Comparison / Gaps. Progress narration never substitutes for this report.
+
+
+## T33. Thorough checklist answered entirely by free bodies
+
+- **Input:** `/free-research widget alternatives --thorough`. last30days and treg free search/fetch answer every competitor checklist item with usable bodies. Each decision-bearing facet has one primary source or two independent origins.
+- **Gate:** record the checklist coverage before the gate; re-emit `remaining-gaps: none`. Make no paid call, no balance check, and no Firecrawl status call despite connected paid tools.
+- **Evidence / report:** run the unchanged verification tail. A facet with only two non-primary origins closes but its claim stays unconfirmed. Write the full Step 6 report with sourced prices, dates, versions, numbers, and attributed quotes where available; state unavailable detail honestly. Comparison / Gaps lists checklist coverage; Tools Used lists actual free endpoints and costs. Preserve section order and closing line.
+
+## T34. Thorough decision-bearing facet needs another origin
+
+- **Input:** `/free-research widget launch --thorough`. All checklist items are answered except the decision-bearing launch-impact facet has one non-primary origin. Syndicated copies of it are still that same origin.
+- **Gate:** emit `gap: launch impact — only one non-primary origin`. Leftover free fetches cannot find a second origin or primary. Probe, check treg balance once, then catalog-check an allowlisted endpoint selected by the open facet. Run treg within Modes-table limits before later families; free-fetch discovered bodies. Never paid-scrape a body already on the url-ledger.
+- **Close variant:** an independent usable body answers the facet, so re-emit `remaining-gaps: none` and return the gate. Two non-primary origins close the facet but do not confirm the finding. The unchanged tail still decides confirmation.
+- **Exhaustion variant:** no eligible family supplies the missing origin. Return the gate and list the shortfall unresolved under Comparison / Gaps with the checklist coverage. No extra attempt past the ceiling; finish the full Step 6 report.
+- **Control:** `/free-research widget launch --balanced` with the same first usable body closes the facet immediately. It creates no checklist gap and makes no paid call to strengthen that source.
+- **Tools Used:** actual free and paid endpoints, costs or labeled estimates, treg spend total, later-family skips and reasons, and note outcome. Preserve report sections and closing line.
+
+## T35. Grok uses treg before a connected TinyFish MCP
+
+- **Input:** free mode on Grok with treg and TinyFish MCP connected and authenticated.
+- **Order:** use treg first: catalog-check the zero-priced TinyFish allowlist and search/fetch with the free cap header. Healthy treg coverage means TinyFish MCP does not run. Tools Used records TinyFish via treg (free), endpoint IDs and costs.
+- **Fallback:** a missing, unauthenticated, failed, or empty treg endpoint falls through to TinyFish MCP in the same turn, then host web if MCP is also unavailable. A price/cap rejection follows SKILL.md Step 3; an unexpected nonzero charge disables treg and switches directly to host web. None of these failures authorizes paid escalation in free mode.
+- **Report:** verification tail and full Step 6 report, with actual tool order, failures, costs, and closing line. Never claim the connected TinyFish MCP ran if treg answered everything.

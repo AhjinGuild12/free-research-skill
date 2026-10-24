@@ -34,7 +34,7 @@ TREG_PAID = {
     "spyfu.google.domain.competitors",
     "scrapecreators.x.v1-youtube-video-transcript", "crawl4ai.youtube.video.captions",
 }
-MODES = ("free", "balanced", "deep")
+MODES = ("free", "balanced", "deep", "thorough")
 REPORT_SECTIONS = (
     "Executive Summary",
     "Key Developments",
@@ -50,7 +50,7 @@ CLOSING_LINE = "your agent is only as good as the worst source it believed."
 TRACE_IDS = (
     tuple(f"T{number}" for number in range(1, 18))
     + ("T18a", "T18b", "T19", "T20", "T21", "T22", "T23", "L1", "L2")
-    + tuple(f"T{number}" for number in range(24, 33))
+    + tuple(f"T{number}" for number in range(24, 36))
 )
 KEY_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+){1,3}$")
 KEY_MAX_BYTES = 48
@@ -149,8 +149,8 @@ _PAIR_RE = re.compile(
     re.IGNORECASE,
 )
 _BARE_CEILING_RE = re.compile(r"(?:≤|\bat most\b)\s*(\d+)", re.IGNORECASE)
-_MODE_FLAG_RE = re.compile(r"--(free|balanced|deep)\b")
-_ROW_MODE_RE = re.compile(r"\*\*(free|balanced|deep)\*\*", re.IGNORECASE)
+_MODE_FLAG_RE = re.compile(r"--(free|balanced|deep|thorough)\b")
+_ROW_MODE_RE = re.compile(r"\*\*(free|balanced|deep|thorough)\*\*", re.IGNORECASE)
 _BLOCK_TOOL_RE = re.compile(r"^\d+\.\s+\*\*(treg|Exa|Firecrawl|Brave)\*\*")
 _TRACE_HEADING_RE = re.compile(r"^#{2,3} ((?:T\d+[a-z]?|L\d+))\.", re.MULTILINE)
 _REFERENCE_RE = re.compile(r"references/[A-Za-z0-9_.-]+\.md")
@@ -247,7 +247,7 @@ def _modes_table(text: str) -> dict[str, dict[str, int]]:
         cells = [cell.strip() for cell in row.strip().strip("|").split("|")]
         if len(cells) < 2:
             raise AssertionError(f"Modes table row is short: {row}")
-        mode_match = re.search(r"\b(free|balanced|deep)\b", cells[0], re.IGNORECASE)
+        mode_match = re.search(r"\b(free|balanced|deep|thorough)\b", cells[0], re.IGNORECASE)
         if not mode_match:
             raise AssertionError(f"Modes table row has no mode: {row}")
         mode = mode_match.group(1).lower()
@@ -272,6 +272,8 @@ def _modes_table(text: str) -> dict[str, dict[str, int]]:
         ceilings["deep"] = {tool: count * 2 for tool, count in ceilings["balanced"].items()}
     elif set(ceilings["deep"]) != set(TOOLS):
         raise AssertionError(f"Modes table deep ceilings: {ceilings['deep']}")
+    if set(ceilings["thorough"]) != set(TOOLS):
+        raise AssertionError(f"Modes table thorough ceilings: {ceilings['thorough']}")
     return ceilings
 
 
@@ -441,6 +443,7 @@ class TestSkillContract(unittest.TestCase):
             "free": (0, "0.00", "0.00"),
             "balanced": (4, "0.05", "0.02"),
             "deep": (10, "0.25", "0.02"),
+            "thorough": (25, "0.50", "0.02"),
         }
         for path in (SKILL_MD, README_MD):
             text = path.read_text(encoding="utf-8")
@@ -457,7 +460,8 @@ class TestSkillContract(unittest.TestCase):
         text = SKILL_MD.read_text(encoding="utf-8")
         self.assertIn("### treg free allowlist", text)
         self.assertEqual(TREG_FREE, _treg_callable_ids(text, "### treg free allowlist", "### 3a."))
-        self.assertIn("TinyFish MCP, then TinyFish via treg, then host web tools", text)
+        self.assertIn("treg's zero-priced TinyFish allowlist, then TinyFish MCP, then host web tools", text)
+        self.assertNotIn("On Grok, a connected TinyFish MCP stays first", text)
         self.assertNotIn("~/.grok/", text)
         self.assertNotIn("/mcps", text)
         for phrase in ("usd_per_call", "catalog_search", "cost_usd", "stop treg use for the rest of the run", "TinyFish via treg (free)"):
@@ -576,6 +580,66 @@ class TestSkillContract(unittest.TestCase):
         readme_text = README_MD.read_text(encoding="utf-8")
         self.assertEqual(_modes_table_rows(skill_text), _modes_table_rows(readme_text))
         self.assertEqual(_modes_table(skill_text), _modes_table(readme_text))
+
+    def test_thorough_caps_and_mode_parse_contract(self) -> None:
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        self.assertEqual(
+            {
+                "free": {"treg": 0, "Exa": 0, "Firecrawl": 0, "Brave": 0},
+                "balanced": {"treg": 4, "Exa": 2, "Firecrawl": 3, "Brave": 1},
+                "deep": {"treg": 10, "Exa": 4, "Firecrawl": 6, "Brave": 2},
+                "thorough": {"treg": 25, "Exa": 6, "Firecrawl": 10, "Brave": 3},
+            },
+            _modes_table(skill),
+        )
+        parse = skill.split("## Step 1: Parse", 1)[1].split("## Step 2:", 1)[0]
+        self.assertIn('`free` | `balanced` | `deep` | `thorough` (default: **free**)', parse)
+        self.assertIn("--thorough", skill.split("user-invocable:", 1)[0])
+        routing = TOOL_ROUTING.read_text(encoding="utf-8")
+        self.assertIn("Thorough uses the same parallel-cli caps as deep.", routing)
+
+    def test_thorough_checklists_and_gate_are_separate_from_confirmation(self) -> None:
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        self.assertIn("### Thorough coverage checklists", skill)
+        intents = skill.split("### Thorough coverage checklists", 1)[1].split("## Step 6:", 1)[0]
+        for intent in ("General", "Competitor", "Person", "Recommendations", "News"):
+            with self.subTest(intent=intent):
+                checklist = intents.split(f"**{intent} checklist**", 1)[1].split("\n\n", 1)[0]
+                self.assertIn("[decision]", checklist)
+                self.assertIn(len(re.findall(r"^- ", checklist, re.MULTILINE)), range(5, 8))
+        gate = skill.split("## Step 4:", 1)[1].split("### Paid path", 1)[0]
+        self.assertIn("two independent origins or one primary source", gate)
+        self.assertIn("unanswered checklist item", gate)
+        self.assertIn("Free, balanced, and deep keep the usable-body close test above.", gate)
+        tail = VERIFICATION_TAIL.read_text(encoding="utf-8")
+        self.assertIn("thorough gate condition", tail)
+        self.assertIn("three independent origins agree or one primary does", tail)
+        self.assertIn("Thorough density:", skill)
+
+    def test_thorough_and_treg_first_traces(self) -> None:
+        text = EVAL_SCENARIOS.read_text(encoding="utf-8")
+        for trace_id, phrases in {
+            "T33": ("--thorough", "checklist", "remaining-gaps: none", "no paid call", "Step 6"),
+            "T34": ("--thorough", "one non-primary origin", "gap:", "treg", "Modes-table limits", "--balanced"),
+            "T35": ("Grok", "TinyFish MCP connected", "treg first", "host web"),
+        }.items():
+            with self.subTest(trace=trace_id):
+                self.assertEqual(1, len(re.findall(rf"^## {trace_id}\.", text, re.MULTILINE)))
+                trace = text.split(f"## {trace_id}.", 1)[1].split("\n## ", 1)[0]
+                for phrase in phrases:
+                    self.assertIn(phrase, trace)
+
+    def test_thorough_has_no_second_ceiling_owner(self) -> None:
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        skill_prose = re.sub(r"(?m)^\|.*\n?", "", skill)
+        for path, text in (
+            (SKILL_MD, skill_prose),
+            *((path, path.read_text(encoding="utf-8")) for path in (SKILL_DIR / "references").glob("*.md")),
+        ):
+            self.assertFalse(
+                [item for item in _ceiling_statements(text) if item[0] == "thorough"],
+                f"{path.name}: thorough ceilings belong only in the Modes table",
+            )
 
     def test_parallel_cli_caps(self) -> None:
         problems: list[str] = []
