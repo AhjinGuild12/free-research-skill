@@ -1,6 +1,6 @@
 ---
 name: free-research
-version: "1.3.0"
+version: "1.4.0"
 description: >
   Smart free-first multi-source research. Combines last30days (community pulse) + TinyFish
   (free search/fetch via treg or MCP) with paid escalation on remaining gaps through
@@ -117,7 +117,7 @@ When no family in the paid order remains eligible, because each one has run, fai
 
 Never end a run on a status message. A paid family that is denied, disconnected, unauthenticated, out of ceiling, or returns nothing counts as "returned no URLs": skip it and continue down the order in the same turn without waiting. Once the order is exhausted, mark the gate returned and continue to the verification tail and Step 6, with remaining gaps unresolved under Comparison / Gaps. Progress narration between tool calls is allowed; the Step 6 report, including Tools Used and the closing line, is the final message. Only then is the run complete.
 
-`--free` never escalates - no treg paid endpoint (`treg.web.extract` included) or `balance`, no Exa, Brave, Firecrawl, `firecrawl --status`, `parallel-cli`, or Parallel Task API. If free coverage is thin, finish honestly and offer `--balanced` or `--deep`.
+`--free` never escalates - no treg paid endpoint (`treg.web.extract` included), no paid facet endpoint, no connected-account route, and no `balance`, no Exa, Brave, Firecrawl, `firecrawl --status`, `parallel-cli`, or Parallel Task API. If free coverage is thin, finish honestly and offer `--balanced` or `--deep`.
 
 ### Paid path (`--balanced`, `--deep`, or `--thorough` only)
 
@@ -165,6 +165,16 @@ Read `FREE_RESEARCH_NOTES_DIR` by name only. It is the only environment variable
 - **News.** Chronological developments, dates, and primary sources. Live X is Step 3d.
 - **Quick.** Stay free. Shorter Executive Summary. Fewer bullets. Still include Tools Used.
 
+### Default facet order
+
+Topic intent sets the default order of facets. It never removes a facet. Endpoints, observed prices, the identifier-first rule, and cheapest-first ordering inside a facet are owned by `references/tool-routing.md`. Do not restate that table here.
+
+- **recommendations:** reviews, then prices, then social
+- **competitor:** prices, then reviews, then SERP competitors
+- **person:** LinkedIn, then X, then YouTube
+- **news:** X, then Reddit, then TikTok
+- **general:** unchanged
+
 ### Thorough coverage checklists
 
 Only `--thorough` requires the full checklist. Build it before Step 4; adapt the questions to TOPIC, record each answer and supporting origins, and turn unanswered items into named facets. `[decision]` marks decision-bearing facets subject to Step 4's stronger close test. Other modes may use these questions as angle hints only; they do not acquire checklist gaps. Report checklist coverage and each shortfall under Comparison / Gaps, without adding sections.
@@ -208,6 +218,8 @@ Only `--thorough` requires the full checklist. Build it before Step 4; adapt the
 - [decision] What changed from the previous state or version?
 - [decision] Which reactions, objections, or competing accounts are supported?
 - What is still developing, uncertain, or awaiting a dated next event?
+
+Checklist items that ask for current prices map to the price facet. Items that ask what practitioners, users, or employees report map to the reviews facet. Items that ask what posts, interviews, or captions say map to the social facet. YouTube captions stay owned by Step 3c. SERP and competitor-list items map to the Domain/SERP competitors row in `references/tool-routing.md`.
 
 ## Step 6: Synthesis (required structure)
 
@@ -259,6 +271,8 @@ One line per tool that ran, and why. **last30days is one line.** Do not unroll i
 - Drill into a specific finding
 - Run `/last30days {TOPIC}` alone for a pure community pass
 - For a Firecrawl-native deliverable, use that skill instead of this one
+
+(When free mode leaves an open or thin social, price, or review facet, add one line: social, price, or review data for this topic is available with `--balanced`)
 
 your agent is only as good as the worst source it believed.
 ```

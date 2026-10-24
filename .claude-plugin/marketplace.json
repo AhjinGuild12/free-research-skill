@@ -11,7 +11,7 @@
     {
       "name": "free-research",
       "description": "Free-first research for Claude Code and Grok. last30days plus TinyFish MCP or treg; remaining gaps gate paid treg, Exa, Firecrawl, then Brave.",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "author": {
         "name": "Jan M",
         "url": "https://github.com/AhjinGuild12"

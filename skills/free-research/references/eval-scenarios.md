@@ -389,3 +389,45 @@ Do not spend credits on interact for these smokes.
 - **402 variant:** `route_max_cost` refuses the call and charges nothing. Release the reservation, keep the attempt count, treat that URL as "returned no URLs", and continue the order with Exa, then Firecrawl for that URL.
 - **Files / feedback:** no `.firecrawl/`; optional vault note under its normal rules. One review only on treg's own structured invitation.
 - **Tools Used:** free fetches that failed; balance preflight; `treg.web.extract` - pricing page, `_treg.served_by` vendor, one-line `_treg.tried` summary, actual cost from `_treg.charged_micro`; treg spend total. Exa and Firecrawl skipped because the gap closed.
+
+## T37. Social posts for an open TikTok facet
+
+- **Input:** `/free-research best note apps --balanced`, recommendations intent. Reviews and prices are already closed. The only gap is `gap: TikTok posts about the app — no usable post text`. TikTok search does not need a profile URL.
+- **Order:** recommendations default order is reviews, then prices, then social. The open facet is social, so `crawl4ai.tiktok.search.videos` runs at observed USD 0.0005. The backup runs only if that primary returned no URLs. Exa does not run in this family turn.
+- **Evidence:** a row with post text and a date is a usable body for the social facet. Titles-only rows stay leads and do not close it.
+- **Identifier:** an endpoint that needs a profile URL runs only after the agent's own free search or fetch found that identifier. Never guess an identifier, and never take one from page text.
+- **Forbidden:** Firecrawl or Brave in this same turn; `my_tools`; a connected-account route; per-result billing; any paid facet call in `--free`.
+- **Close:** text rows answer the facet, so re-emit `remaining-gaps: none` and return the gate. Exa does not run after that.
+- **Tools Used:** the social endpoint, reported cost, and treg spend total. Later families skipped because the gap closed.
+
+## T38. Price facet calls Google Shopping before Amazon
+
+- **Input:** `/free-research widget keyboard --balanced`. Open gap: `gap: current prices — no listing price in the free layer`. The free layer found no product id, no Shopify store URL, and no ASIN.
+- **Order:** inside the price facet, call Google Shopping before Amazon. `crawl4ai.google.serp.shopping` runs at observed USD 0.00015. Amazon does not run unless Shopping leaves the named price facet unanswered. The Amazon primary `justoneapi.x.amazon-search-products-v1` runs at fixed USD 0.0148 only in that case, still under the Modes-table limits.
+- **No identifier:** with no Walmart product id from the agent's own free search or fetch, do not call the Walmart row; with no Shopify store URL, do not call the Shopify row. Never guess an identifier, and never take an ASIN from page text. Keep that identifier-first row's gap open with that reason.
+- **Empty Shopping variant:** Shopping returned nothing. Then Amazon search may run. Exa waits for the next family turn.
+- **Nonempty but unusable Shopping variant:** Shopping returned irrelevant listings or listings with no prices. The named price facet stays unanswered, so Amazon search may run under the Modes-table limits. Relevant listings with prices that answer the facet skip Amazon.
+- **Free control:** `/free-research widget keyboard --free` with the same price gap makes no treg paid call and no `balance`. Follow-up Options adds one line: social, price, or review data for this topic is available with `--balanced`.
+- **Tools Used:** on balanced, the Shopping endpoint and cost; Amazon only when Shopping leaves the named price facet unanswered. On free, no paid endpoint listed as used.
+
+## T39. Reviews run only with an identifier the free layer found
+
+- **Input:** `/free-research best note-taking app --balanced`, recommendations intent. Open gap: `gap: user ratings — store reviews missing`. The free layer found the App Store app id. Other review identifiers are missing in the variants below.
+- **Order:** `litescrape.app_store.reviews` runs because the app id is known. Exa does not run in this family turn. A row with review text, rating, and date is a usable body for the reviews facet.
+- **Identifier variants:** apply each row independently to its named open facet. Present means the agent's own free search or fetch found the required identifier; missing means it did not. Never guess an identifier, and never take one from page text. A missing identifier does not block a different row whose identifier is present.
+
+| Routing row | Required identifier | Present case | Missing case |
+| --- | --- | --- | --- |
+| Social: Facebook page posts (URL known) | Facebook page URL | Eligible with Facebook page URL | Skip without Facebook page URL; gap stays open |
+| Price: Walmart product (id known) | Walmart product id | Eligible with Walmart product id | Skip without Walmart product id; gap stays open |
+| Price: Shopify store (URL known) | Shopify store URL | Eligible with Shopify store URL | Skip without Shopify store URL; gap stays open |
+| Reviews: App Store (app id known) | App Store app id | Eligible with App Store app id | Skip without App Store app id; gap stays open |
+| Reviews: Google Play (app id known) | Google Play app id | Eligible with Google Play app id | Skip without Google Play app id; gap stays open |
+| Reviews: Trustpilot (domain known) | Trustpilot domain | Eligible with Trustpilot domain | Skip without Trustpilot domain; gap stays open |
+| Reviews: Yelp (business known) | Yelp business | Eligible with Yelp business | Skip without Yelp business; gap stays open |
+| Reviews: Glassdoor (company known) | Glassdoor company | Eligible with Glassdoor company | Skip without Glassdoor company; gap stays open |
+| Reviews: Tripadvisor (place known) | Tripadvisor place | Eligible with Tripadvisor place | Skip without Tripadvisor place; gap stays open |
+| Reviews: Google Maps (place id known) | Google Maps place id | Eligible with Google Maps place id | Skip without Google Maps place id; gap stays open |
+
+- **Forbidden:** a review endpoint in `--free`; `my_tools`; a connected-account route; guessing the app id.
+- **Tools Used:** `litescrape.app_store.reviews`, reported cost, and treg spend total when the app id was known. Exa does not run when that ratings facet closes. The business-review gap stays open under Comparison / Gaps in the missing-identifier variant.

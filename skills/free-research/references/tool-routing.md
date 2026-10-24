@@ -104,7 +104,11 @@ Do not probe on `--free`. SKILL.md's Step 4 gate owns that ban.
 
 Candidate prices below are planning observations, not authorization. Confirm exact IDs and `usd_per_call` through `catalog_search` before calling. Choose only an eligible route for a named remaining gap.
 
-Route by the open gap/facet, regardless of topic intent. Topic intent only sets the default order of facets; it never removes a facet's endpoint. A Reddit gap uses the Reddit search candidates even when intent is `news`.
+Route by the open gap/facet, regardless of topic intent. Topic intent only sets the default order of facets; it never removes a facet's endpoint. A Reddit gap uses the Reddit search candidates even when intent is `news`. SKILL.md Step 5 owns the default facet order for each intent. Inside the price facet, call Google Shopping before Amazon. Amazon runs only when Shopping leaves the named price facet unanswered, including irrelevant listings or listings with no prices.
+
+An endpoint that needs an app id, business URL, ASIN, place id, or profile URL runs only after the agent's own free search or fetch found that identifier. Never guess an identifier, and never take one from page text. If the free layer did not find it, do not call that endpoint, and keep the gap open with that reason.
+
+No `my_tools` call and no connected-account route. Per-result or per-row billing is excluded. A price above the Modes-table per-call ceiling is excluded. Platforms in Chinese markets stay out unless the topic is in Chinese or about the China market, and then still under the Modes-table caps.
 
 | Gap / facet type | Explicit endpoint candidates | Observed USD/call |
 | --- | --- | --- |
@@ -112,9 +116,28 @@ Route by the open gap/facet, regardless of topic intent. Topic intent only sets 
 | X posts or threads | `anyapi.x.search.posts` or `crawl4ai.x.search.posts` | 0.00075 / 0.00065 |
 | Domain/SERP competitors | `spyfu.google.domain.competitors` | 0.0002 |
 | YouTube captions for a discovered video | `scrapecreators.x.v1-youtube-video-transcript` or `crawl4ai.youtube.video.captions` | 0.00188 / 0.00165 |
+| Social: TikTok search | `crawl4ai.tiktok.search.videos` or `tikhub.tiktok.search.videos` | 0.0005 / 0.001 per success |
+| Social: Instagram hashtag | `crawl4ai.instagram.hashtag.posts` or `tikhub.x.instagram-v1-fetch-hashtag-posts` | 0.0009 / 0.001 |
+| Social: YouTube search | `crawl4ai.youtube.search.videos` or `tikhub.x.youtube-web-search-video` | 0.0009 / 0.001 |
+| Social: LinkedIn posts | `anyapi.linkedin.search.posts` or `scrapecreators.x.v1-linkedin-search-posts` | 0.002 / 0.00188 per call |
+| Social: Facebook page posts (URL known) | `crawl4ai.facebook.user.posts` or `anyapi.facebook.user.posts` | 0.00135 / 0.002 |
+| Social: Threads search | `scrapecreators.x.v1-threads-search` or `tikhub.x.threads-web-search-recent` | 0.00188 / 0.002 |
+| Price: Google Shopping | `crawl4ai.google.serp.shopping` or `litescrape.google.serp.shopping` | 0.00015 / 0.00015 |
+| Price: Amazon search | `justoneapi.x.amazon-search-products-v1` | 0.0148 |
+| Price: Walmart product (id known) | `crawl4ai.walmart.product.detail` | 0.00135 |
+| Price: eBay search | `serpapi.x.ebay-search` | 0.015 |
+| Price: Etsy search | `crawl4ai.etsy.search.products` | 0.00015 |
+| Price: Shopify store (URL known) | `crawl4ai.shopify.store.products` | 0.00015 |
+| Reviews: App Store (app id known) | `litescrape.app_store.reviews` or `crawl4ai.app-store.app.detail` | 0.00015 / 0.00015 |
+| Reviews: Google Play (app id known) | `litescrape.google_play.reviews` | 0.00015 |
+| Reviews: Trustpilot (domain known) | `crawl4ai.trustpilot.business.reviews` | 0.00135 |
+| Reviews: Yelp (business known) | `crawl4ai.yelp.business.reviews` or `litescrape.yelp.business.reviews` | 0.00015 / 0.00015 |
+| Reviews: Glassdoor (company known) | `crawl4ai.glassdoor.company.reviews` | 0.00015 |
+| Reviews: Tripadvisor (place known) | `litescrape.tripadvisor.business.reviews` | 0.00015 |
+| Reviews: Google Maps (place id known) | `crawl4ai.google.maps.reviews` or `litescrape.google.maps.reviews` | 0.00015 / 0.00015 |
 | General page extraction | `treg.web.extract` (routed, capped by header) | Free first (TinyFish), then per-success vendors; header-capped |
 
-Do not add company identify or an unlisted extract endpoint during a run. `treg.web.extract` is never a search or discovery tool; the treg ops card owns its rules. Caption candidates apply only to discovered videos with missing load-bearing captions after Step 3c; its video cap still applies. A title, snippet, social search hit, or domain-competitor list is a lead. Free-fetch discovered URLs for their bodies before re-gating. Do not treat a title-only Reddit result as a usable body.
+Do not add company identify or an unlisted extract endpoint during a run. `treg.web.extract` is never a search or discovery tool; the treg ops card owns its rules. Caption candidates apply only to discovered videos with missing load-bearing captions after Step 3c; its video cap still applies. A title, snippet, or domain-competitor list is a lead. A row of posts or reviews with text, rating, and date is a usable body for that facet. Titles-only rows stay leads. Free-fetch discovered URLs for their bodies before re-gating. Do not treat a title-only Reddit result as a usable body.
 
 ## treg ops card
 
@@ -124,7 +147,7 @@ Never-use: `call_media`, `my_tools`, `catalog_request`, `feedback`, `tinyfish.we
 
 1. Enter only after leftover free fetches, with open gaps in balanced/deep/thorough. A disabled treg from Step 3 stays disabled. Check `balance` once before first spend. Missing MCP, auth failure, failing/zero/insufficient balance: follow SKILL.md Step 4's "Never end a run on a status message" rule. Do not top up, install, or retry-loop.
 2. Match an exact allowlisted ID in `catalog_search`. Require a known nonnegative `usd_per_call`, no user key, and a bounded total for the requested page/rows. Unknown price, unbounded per-row billing, or a price above the Modes-table per-call ceiling: skip, report why, continue the ladder. `treg.web.extract` is the one exception to the known-price rule: its header cap is the bound (item 7). Do not make a call to discover price. For `anyapi.*`, send `max_items` and `fields` in the `query` slot, never in `body`. Put the request itself in `body`. Size the rows and fields to the remaining gap. For `anyapi.x.search.posts`, use body `{"query": "...", "limit": 5}` and query `{"max_items": 5, "fields": "url,text,createdUtc,authorUsername"}`. Body `limit` is advisory. `max_items` in `body` returns HTTP `400` `invalid_input`. Trimming never changes the charge. Do not use `summary` or `jq`. For other providers, request the smallest documented page and extract only gate-relevant fields. Do not invent trim parameters.
-3. Before each `call`, reserve its catalog-priced upper bound against remaining balance and invocation budget; include earlier actual costs and estimated costs. Stop before the call-count, dollar, or per-call limit would be crossed. Send `X-Treg-Route-Max-Cost: <usd>` in the `headers` slot on every paid `call`. Set it to the lesser of the Modes-table per-call ceiling and the remaining invocation dollar budget. The header supplements, never replaces, client-side reservation and post-call `cost_usd` checks. Count every paid-endpoint attempt, including failures; never reset on a later turn. Run serially. These limits live only in SKILL.md's Modes table.
+3. Before each `call`, reserve its catalog-priced upper bound against remaining balance and invocation budget; include earlier actual costs and estimated costs. For any `crawl4ai.*` endpoint, reserve 4x its catalog price: effort billing ranges from x0.5 archived, x1 light/standard, x2 browser, to x4 when the site fights back; the exact charge is reported per call, and blocked 403/502/503 answers are free. The reserved amount must be at or under the Modes-table per-call ceiling or skip the endpoint. Stop before the call-count, dollar, or per-call limit would be crossed. Send `X-Treg-Route-Max-Cost: <usd>` in the `headers` slot on every paid `call`. Set it to the lesser of the Modes-table per-call ceiling and the remaining invocation dollar budget. The header supplements, never replaces, client-side reservation and post-call `cost_usd` checks. Count every paid-endpoint attempt, including failures; never reset on a later turn. Run serially. These limits live only in SKILL.md's Modes table.
 4. HTTP `402` with `detail.error` `route_max_cost` is a cap or price rejection with nothing charged. The MCP `hint` wrongly says the balance is short. It is not a balance failure and still counts as an attempt. Skip that endpoint, report why, and continue the ladder. Read each result's `cost_usd`, add it to the running treg spend total, and replace that call's reservation. Missing cost: keep the catalog-based estimate and label it estimated. A failed call with no cost retains its reservation. An invalid cost or a reported per-call/total overrun stops treg for the invocation; report the cost and continue with host free reads and later eligible families. A nonzero cost from a free endpoint always invokes Step 3's stop rule. A post-call check cannot undo a charge.
 5. Apply SKILL.md Step 4's Remaining-gap list rule for closure, empty/failed results, and next-family fallback. Re-emit the gap list and stop if empty.
 6. Apply SKILL.md's treg MCP tool boundary for review invitations and never-use `feedback`, including `hint` requests. Tools Used lists endpoint IDs, reported cost or labeled estimate for each call, treg spend total, and skips with reasons. Empty gaps mean an explicit treg-paid skip and no `balance`.

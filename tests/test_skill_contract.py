@@ -28,12 +28,127 @@ TREG_NEVER = {
     "tinyfish.web.agent.run", "treg.web.search",
     "treg.companies.enrich", "treg.x.search.posts",
 }
-TREG_PAID = {
+TREG_PAID_FIXED = {
     "scrapecreators.reddit.search.posts", "anyapi.reddit.search",
     "anyapi.x.search.posts", "crawl4ai.x.search.posts",
     "spyfu.google.domain.competitors", "treg.web.extract",
     "scrapecreators.x.v1-youtube-video-transcript", "crawl4ai.youtube.video.captions",
 }
+# KTD2 rows, 2026-10-24. Primary then backup. Price cell is the observed price, not a ceiling.
+TREG_FACET_ROWS: dict[str, tuple[tuple[str, ...], str]] = {
+    "Social: TikTok search": (
+        ("crawl4ai.tiktok.search.videos", "tikhub.tiktok.search.videos"),
+        "0.0005 / 0.001 per success",
+    ),
+    "Social: Instagram hashtag": (
+        ("crawl4ai.instagram.hashtag.posts", "tikhub.x.instagram-v1-fetch-hashtag-posts"),
+        "0.0009 / 0.001",
+    ),
+    "Social: YouTube search": (
+        ("crawl4ai.youtube.search.videos", "tikhub.x.youtube-web-search-video"),
+        "0.0009 / 0.001",
+    ),
+    "Social: LinkedIn posts": (
+        ("anyapi.linkedin.search.posts", "scrapecreators.x.v1-linkedin-search-posts"),
+        "0.002 / 0.00188 per call",
+    ),
+    "Social: Facebook page posts (URL known)": (
+        ("crawl4ai.facebook.user.posts", "anyapi.facebook.user.posts"),
+        "0.00135 / 0.002",
+    ),
+    "Social: Threads search": (
+        ("scrapecreators.x.v1-threads-search", "tikhub.x.threads-web-search-recent"),
+        "0.00188 / 0.002",
+    ),
+    "Price: Google Shopping": (
+        ("crawl4ai.google.serp.shopping", "litescrape.google.serp.shopping"),
+        "0.00015 / 0.00015",
+    ),
+    "Price: Amazon search": (
+        ("justoneapi.x.amazon-search-products-v1",),
+        "0.0148",
+    ),
+    "Price: Walmart product (id known)": (
+        ("crawl4ai.walmart.product.detail",),
+        "0.00135",
+    ),
+    "Price: eBay search": (
+        ("serpapi.x.ebay-search",),
+        "0.015",
+    ),
+    "Price: Etsy search": (
+        ("crawl4ai.etsy.search.products",),
+        "0.00015",
+    ),
+    "Price: Shopify store (URL known)": (
+        ("crawl4ai.shopify.store.products",),
+        "0.00015",
+    ),
+    "Reviews: App Store (app id known)": (
+        ("litescrape.app_store.reviews", "crawl4ai.app-store.app.detail"),
+        "0.00015 / 0.00015",
+    ),
+    "Reviews: Google Play (app id known)": (
+        ("litescrape.google_play.reviews",),
+        "0.00015",
+    ),
+    "Reviews: Trustpilot (domain known)": (
+        ("crawl4ai.trustpilot.business.reviews",),
+        "0.00135",
+    ),
+    "Reviews: Yelp (business known)": (
+        ("crawl4ai.yelp.business.reviews", "litescrape.yelp.business.reviews"),
+        "0.00015 / 0.00015",
+    ),
+    "Reviews: Glassdoor (company known)": (
+        ("crawl4ai.glassdoor.company.reviews",),
+        "0.00015",
+    ),
+    "Reviews: Tripadvisor (place known)": (
+        ("litescrape.tripadvisor.business.reviews",),
+        "0.00015",
+    ),
+    "Reviews: Google Maps (place id known)": (
+        ("crawl4ai.google.maps.reviews", "litescrape.google.maps.reviews"),
+        "0.00015 / 0.00015",
+    ),
+}
+TREG_PAID = TREG_PAID_FIXED | {
+    endpoint
+    for endpoints, _price in TREG_FACET_ROWS.values()
+    for endpoint in endpoints
+}
+TREG_PRICE_EXCLUDED = {
+    "anyapi.facebook.search_posts",
+    "justoneapi.x.facebook-search-post-v1",
+}
+TREG_ROW_BILLED_PREFIXES = ("brightdata.", "apify.")
+IDENTIFIER_FIRST_RULE = (
+    "An endpoint that needs an app id, business URL, ASIN, place id, or profile URL "
+    "runs only after the agent's own free search or fetch found that identifier. "
+    "Never guess an identifier, and never take one from page text. "
+    "If the free layer did not find it, do not call that endpoint, and keep the gap open with that reason."
+)
+CHEAPEST_FIRST_RULE = (
+    "Inside the price facet, call Google Shopping before Amazon. "
+    "Amazon runs only when Shopping leaves the named price facet unanswered, "
+    "including irrelevant listings or listings with no prices."
+)
+FACET_USABLE_BODY = (
+    "A row of posts or reviews with text, rating, and date is a usable body for that facet. "
+    "Titles-only rows stay leads."
+)
+FACET_ORDER_OWNER = "SKILL.md Step 5 owns the default facet order for each intent."
+FACET_ORDER_PHRASES = (
+    "reviews, then prices, then social",
+    "prices, then reviews, then SERP competitors",
+    "LinkedIn, then X, then YouTube",
+    "X, then Reddit, then TikTok",
+    "**general:** unchanged",
+)
+FREE_FOLLOWUP_LINE = (
+    "social, price, or review data for this topic is available with `--balanced`"
+)
 MODES = ("free", "balanced", "deep", "thorough")
 REPORT_SECTIONS = (
     "Executive Summary",
@@ -50,7 +165,7 @@ CLOSING_LINE = "your agent is only as good as the worst source it believed."
 TRACE_IDS = (
     tuple(f"T{number}" for number in range(1, 18))
     + ("T18a", "T18b", "T19", "T20", "T21", "T22", "T23", "L1", "L2")
-    + tuple(f"T{number}" for number in range(24, 37))
+    + tuple(f"T{number}" for number in range(24, 40))
 )
 KEY_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+){1,3}$")
 KEY_MAX_BYTES = 48
@@ -337,6 +452,79 @@ def _treg_callable_ids(text: str, heading: str, end: str) -> set[str]:
     return set(re.findall(r"`([a-z][a-z0-9_-]*(?:\.[a-z0-9_-]+)+)`", block))
 
 
+def _paid_allowlist_block(routing: str) -> str:
+    return routing.split("## treg paid allowlist", 1)[1].split("## treg ops card", 1)[0]
+
+
+def _allowlist_data_rows(block: str) -> list[tuple[str, str, str]]:
+    rows: list[tuple[str, str, str]] = []
+    for line in block.splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) < 3 or cells[0] == "Gap / facet type" or cells[0].startswith("-"):
+            continue
+        rows.append((cells[0], cells[1], cells[2]))
+    return rows
+
+
+def _assert_facet_price_table(routing: str, ceiling: Decimal) -> None:
+    """Pin KTD2 rows, exact observed prices, and the per-call ceiling."""
+    rows = _allowlist_data_rows(_paid_allowlist_block(routing))
+    by_label = {label: (endpoints, price) for label, endpoints, price in rows}
+    for label, (endpoints, price) in TREG_FACET_ROWS.items():
+        if label not in by_label:
+            raise AssertionError(f"missing facet row: {label}")
+        got_endpoints = tuple(re.findall(r"`([^`]+)`", by_label[label][0]))
+        if got_endpoints != endpoints:
+            raise AssertionError(f"{label}: endpoints {got_endpoints} != {endpoints}")
+        if by_label[label][1] != price:
+            raise AssertionError(f"{label}: price {by_label[label][1]!r} != {price!r}")
+    for label, endpoints, price in rows:
+        if label == "General page extraction":
+            continue
+        if not re.fullmatch(r"\d+(?:\.\d+)?(?: / \d+(?:\.\d+)?)*(?: per (?:success|call))?", price):
+            raise AssertionError(f"{label}: malformed fixed-price cell {price!r}")
+        endpoint_ids = re.findall(r"`([^`]+)`", endpoints)
+        amounts = re.findall(r"\d+(?:\.\d+)?", price)
+        if len(endpoint_ids) != len(amounts):
+            raise AssertionError(f"{label}: endpoint and price counts differ")
+        for endpoint, amount in zip(endpoint_ids, amounts):
+            reservation = Decimal(amount) * (4 if endpoint.startswith("crawl4ai.") else 1)
+            if reservation > ceiling:
+                raise AssertionError(
+                    f"{label}: {endpoint} reservation USD {reservation} "
+                    f"is above the per-call ceiling {ceiling}"
+                )
+    for endpoint_id in _treg_callable_ids(routing, "## treg paid allowlist", "## treg ops card"):
+        if endpoint_id.startswith(TREG_ROW_BILLED_PREFIXES) or endpoint_id in TREG_PRICE_EXCLUDED:
+            raise AssertionError(f"excluded endpoint in allowlist: {endpoint_id}")
+    shopping = next(index for index, row in enumerate(rows) if row[0] == "Price: Google Shopping")
+    amazon = next(index for index, row in enumerate(rows) if row[0] == "Price: Amazon search")
+    if shopping > amazon:
+        raise AssertionError("Google Shopping must come before Amazon")
+
+
+def _assert_free_mode_bans_facet_endpoints(text: str) -> None:
+    try:
+        free_ban = next(line for line in text.splitlines() if line.startswith("`--free` never escalates"))
+    except StopIteration as exc:
+        raise AssertionError("free-mode ban line missing") from exc
+    free_row = next(line for line in text.splitlines() if line.startswith("| **free**"))
+    if "no paid facet endpoint" not in free_ban or "no connected-account route" not in free_ban:
+        raise AssertionError("free mode does not ban paid facet endpoints and connected-account routes")
+    free_text = free_ban + "\n" + free_row
+    if re.search(
+        r"facet endpoint.{0,60}(?:\bmay\b|\bcan\b|\bis allowed\b|\bare allowed\b)",
+        free_text,
+        re.IGNORECASE,
+    ):
+        raise AssertionError("free mode permits a facet endpoint")
+    overlap = _treg_callable_ids(text, "### treg free allowlist", "### 3a.") & TREG_PAID
+    if overlap:
+        raise AssertionError(f"free allowlist permits facet endpoints: {sorted(overlap)}")
+
+
 def _assert_treg_dollar_ceilings(
     text: str, limits: dict[str, tuple[int, str, str]]
 ) -> None:
@@ -445,6 +633,7 @@ class TestSkillContract(unittest.TestCase):
                 "scrapecreators.x.v1-youtube-video-transcript", "crawl4ai.youtube.video.captions",
             },
             "General page extraction": {"treg.web.extract"},
+            **{label: set(endpoints) for label, (endpoints, _price) in TREG_FACET_ROWS.items()},
         }
         actual = {row[0]: set(re.findall(r"`([^`]+)`", row[1])) for row in rows[2:]}
         self.assertEqual(expected, actual)
@@ -455,6 +644,156 @@ class TestSkillContract(unittest.TestCase):
         treg = skill.split("3. **treg**", 1)[1].split("\n4.", 1)[0]
         self.assertIn("Choose treg by the open facet under the routing rules owned by `references/tool-routing.md`.", treg)
         self.assertFalse(TREG_PAID & set(re.findall(r"`([^`]+)`", treg)))
+
+    def test_social_price_review_rows_stay_at_or_under_per_call_ceiling(self) -> None:
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        limits = _treg_limits(skill)
+        ceiling = Decimal(limits["balanced"][2])
+        for mode in ("deep", "thorough"):
+            self.assertEqual(ceiling, Decimal(limits[mode][2]))
+        routing = TOOL_ROUTING.read_text(encoding="utf-8")
+        _assert_facet_price_table(routing, ceiling)
+        card = routing.split("## treg ops card", 1)[1].split("## Firecrawl ops card", 1)[0]
+        self.assertIn("For any `crawl4ai.*` endpoint, reserve 4x its catalog price", card)
+        self.assertIn("The reserved amount must be at or under the Modes-table per-call ceiling or skip the endpoint.", card)
+        block = _paid_allowlist_block(routing)
+        for phrase in (
+            IDENTIFIER_FIRST_RULE,
+            CHEAPEST_FIRST_RULE,
+            FACET_USABLE_BODY,
+            FACET_ORDER_OWNER,
+            "No `my_tools` call and no connected-account route.",
+            "Per-result or per-row billing is excluded.",
+            "Platforms in Chinese markets stay out unless the topic is in Chinese or about the China market, "
+            "and then still under the Modes-table caps.",
+        ):
+            self.assertIn(phrase, block)
+        facet_ids = TREG_PAID - TREG_PAID_FIXED
+        self.assertFalse(facet_ids & set(re.findall(r"`([^`]+)`", skill)))
+        over_ceiling = routing.replace(
+            "## treg ops card",
+            "| Price: Over ceiling | `crawl4ai.example.over` | 9.99 |\n\n## treg ops card",
+            1,
+        )
+        with self.assertRaises(AssertionError):
+            _assert_facet_price_table(over_ceiling, ceiling)
+        facebook_search = routing.replace(
+            "## treg ops card",
+            "| Social: Facebook keyword search | `anyapi.facebook.search_posts` | 0.01 |\n\n## treg ops card",
+            1,
+        )
+        with self.assertRaises(AssertionError):
+            _assert_facet_price_table(facebook_search, ceiling)
+        per_result = routing.replace(
+            "## treg ops card",
+            "| Social: per result | `brightdata.tiktok.posts` | 0.001 |\n\n## treg ops card",
+            1,
+        )
+        with self.assertRaises(AssertionError):
+            _assert_facet_price_table(per_result, ceiling)
+        without_reviews = "\n".join(
+            line for line in routing.splitlines() if not line.startswith("| Reviews:")
+        )
+        with self.assertRaises(AssertionError):
+            _assert_facet_price_table(without_reviews, ceiling)
+
+    def test_crawl4ai_amazon_reservation_exceeds_per_call_ceiling(self) -> None:
+        routing = TOOL_ROUTING.read_text(encoding="utf-8")
+        ceiling = Decimal(_treg_limits(SKILL_MD.read_text(encoding="utf-8"))["balanced"][2])
+        mutated = routing.replace(
+            "## treg ops card",
+            "| Price: Extra Amazon | `crawl4ai.amazon.search.products` | 0.0135 |\n\n## treg ops card",
+            1,
+        )
+        with self.assertRaisesRegex(AssertionError, r"reservation USD 0\.0540 is above the per-call ceiling"):
+            _assert_facet_price_table(mutated, ceiling)
+
+    def test_fixed_price_cells_parse_integers_and_reject_malformed_prices(self) -> None:
+        routing = TOOL_ROUTING.read_text(encoding="utf-8")
+        ceiling = Decimal(_treg_limits(SKILL_MD.read_text(encoding="utf-8"))["balanced"][2])
+        for price in ("0", "0 / 0.001 per call"):
+            with self.subTest(price=price):
+                endpoints = "`crawl4ai.example.extra`"
+                if " / " in price:
+                    endpoints += " or `anyapi.example.extra`"
+                mutated = routing.replace(
+                    "## treg ops card",
+                    f"| Price: Extra | {endpoints} | {price} |\n\n## treg ops card",
+                    1,
+                )
+                _assert_facet_price_table(mutated, ceiling)
+        for price, error in (
+            ("9 / 9", "above the per-call ceiling"),
+            ("9.99 / 0", "above the per-call ceiling"),
+            ("unknown", "malformed fixed-price cell"),
+            ("-0.001", "malformed fixed-price cell"),
+            ("0.001 /", "malformed fixed-price cell"),
+            ("0.001oops", "malformed fixed-price cell"),
+            ("0.001.2", "malformed fixed-price cell"),
+        ):
+            with self.subTest(price=price):
+                endpoints = "`crawl4ai.example.extra`"
+                if " / " in price:
+                    endpoints += " or `anyapi.example.extra`"
+                mutated = routing.replace(
+                    "## treg ops card",
+                    f"| Price: Extra | {endpoints} | {price} |\n\n## treg ops card",
+                    1,
+                )
+                with self.assertRaisesRegex(AssertionError, error):
+                    _assert_facet_price_table(mutated, ceiling)
+
+    def test_identifier_cases_match_each_routing_row(self) -> None:
+        cases = {
+            "Social: Facebook page posts (URL known)": "Facebook page URL",
+            "Price: Walmart product (id known)": "Walmart product id",
+            "Price: Shopify store (URL known)": "Shopify store URL",
+            "Reviews: App Store (app id known)": "App Store app id",
+            "Reviews: Google Play (app id known)": "Google Play app id",
+            "Reviews: Trustpilot (domain known)": "Trustpilot domain",
+            "Reviews: Yelp (business known)": "Yelp business",
+            "Reviews: Glassdoor (company known)": "Glassdoor company",
+            "Reviews: Tripadvisor (place known)": "Tripadvisor place",
+            "Reviews: Google Maps (place id known)": "Google Maps place id",
+        }
+        routing_rows = dict((label, endpoints) for label, endpoints, _price in
+                            _allowlist_data_rows(_paid_allowlist_block(TOOL_ROUTING.read_text(encoding="utf-8"))))
+        trace = EVAL_SCENARIOS.read_text(encoding="utf-8").split("## T39.", 1)[1].split("\n## ", 1)[0]
+        rows = [
+            [cell.strip() for cell in line.strip("|").split("|")]
+            for line in trace.splitlines() if line.startswith("|")
+        ]
+        self.assertEqual(set(cases), {row[0] for row in rows[2:]})
+        for row in rows[2:]:
+            label, identifier, present, missing = row
+            with self.subTest(row=label):
+                self.assertIn(label, routing_rows)
+                self.assertEqual(cases[label], identifier)
+                self.assertEqual(f"Eligible with {identifier}", present)
+                self.assertEqual(f"Skip without {identifier}; gap stays open", missing)
+        self.assertIn("apply each row independently", trace)
+        self.assertIn("agent's own free search or fetch found the required identifier", trace)
+
+    def test_identifier_first_and_free_mode_ban_facet_endpoints(self) -> None:
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        _assert_free_mode_bans_facet_endpoints(skill)
+        permitted = skill.replace(
+            "no paid facet endpoint",
+            "a paid facet endpoint is allowed",
+            1,
+        )
+        with self.assertRaises(AssertionError):
+            _assert_free_mode_bans_facet_endpoints(permitted)
+        step5 = skill.split("## Step 5:", 1)[1].split("## Step 6:", 1)[0]
+        combined = skill + "\n" + TOOL_ROUTING.read_text(encoding="utf-8")
+        for phrase in FACET_ORDER_PHRASES:
+            self.assertEqual(1, combined.count(phrase), phrase)
+            self.assertIn(phrase, step5)
+        self.assertIn("current prices map to the price facet", step5)
+        self.assertIn("map to the reviews facet", step5)
+        self.assertIn("map to the social facet", step5)
+        self.assertIn("`references/tool-routing.md`", step5)
+        self.assertEqual(1, skill.count(FREE_FOLLOWUP_LINE))
 
     def test_news_reddit_gap_runs_treg_before_later_families(self) -> None:
         trace = EVAL_SCENARIOS.read_text(encoding="utf-8").split("## T31.", 1)[1].split("\n## ", 1)[0]
@@ -716,6 +1055,18 @@ class TestSkillContract(unittest.TestCase):
             "T34": ("--thorough", "one non-primary origin", "gap:", "treg", "Modes-table limits", "--balanced"),
             "T35": ("Grok", "TinyFish MCP connected", "treg first", "host web"),
             "T36": ("--balanced", "X-Treg-Route-Max-Cost", "_treg.charged_micro", "url-ledger", "Exa and Firecrawl"),
+            "T37": ("--balanced", "crawl4ai.tiktok.search.videos", "Titles-only rows stay leads", "Exa does not"),
+            "T38": (
+                "Google Shopping", "crawl4ai.google.serp.shopping", "Amazon",
+                "justoneapi.x.amazon-search-products-v1", "fixed USD 0.0148",
+                "returned nothing", "Nonempty but unusable Shopping variant",
+                "irrelevant listings or listings with no prices", "skip Amazon",
+                "--free", FREE_FOLLOWUP_LINE,
+            ),
+            "T39": (
+                "litescrape.app_store.reviews", "app id", "Exa does not",
+                "Required identifier", "gap stays open",
+            ),
         }.items():
             with self.subTest(trace=trace_id):
                 self.assertEqual(1, len(re.findall(rf"^## {trace_id}\.", text, re.MULTILINE)))
