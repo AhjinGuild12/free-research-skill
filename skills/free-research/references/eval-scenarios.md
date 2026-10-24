@@ -341,3 +341,18 @@ Do not spend credits on interact for these smokes.
 - **Forbidden:** marking the facet closed or returning the gate after treg's empty result; skipping Exa; retrying treg; running both paid families in one turn; Firecrawl, Brave, or `parallel-cli` after the gap closes.
 - **Files / feedback:** no `.firecrawl/`; optional vault note under its normal rules. At most one review for treg's completed call, only on its own structured response invitation under SKILL.md's treg MCP tool boundary.
 - **Tools Used / report:** treg endpoint, empty result, actual cost or labeled estimate, treg spend total; Exa on the retained gap. The usable body closes the facet; verification still determines confirmation.
+
+## T31. News intent with an open Reddit facet
+
+- **Input:** `/free-research latest widget launch news --balanced`, news intent. After the free layer and leftover free fetches, the only gap is `gap: on-topic Reddit posts about the launch — free search found no usable Reddit bodies`. treg, Exa, and Firecrawl are available.
+- **Order:** probe connected tools; check sufficient treg balance once; verify `anyapi.reddit.search` through `catalog_search` with a bounded request at observed USD 0.0012. Run treg Reddit search within the Modes-table limits before Exa or Firecrawl. Use the documented query-slot trimming and paid cap header. News intent does not remove the Reddit route or force X search.
+- **Gate / evidence:** title-only hits remain leads; free-fetch discovered URLs for usable bodies. If the Reddit facet is answered, re-emit `remaining-gaps: none` and return the gate; no Exa, Firecrawl, or Firecrawl status. Verification still determines confirmation.
+- **Empty / unreadable variant:** retain the Reddit gap. On the next family turn, Exa runs if eligible; Firecrawl follows only under its normal rules. Do not skip treg merely because X search would not answer this facet.
+- **Files / feedback:** no `.firecrawl/` unless Firecrawl actually runs; optional vault note under its normal rules. Review only on the completed call's structured invitation.
+- **Tools Used / report:** actual free layer; treg Reddit endpoint, reported cost or labeled estimate, treg spend total; later families only if they ran. Intent orders facets, while the open facet selects the endpoint.
+
+## T32. Unavailable paid families still end with the report
+
+- **Input:** `--balanced`; two paid treg calls leave the Reddit gap open; Exa disconnected and Firecrawl denied by the host. Brave is disconnected; no Parallel opt-in.
+- **Required:** skip both in the same turn without waiting, then skip ineligible Brave and Parallel; mark the gate returned. Follow SKILL.md Step 4's completion rule through the verification tail and vault note procedure under its normal rules. No extra paid call or retry.
+- **Report:** write the full Step 6 report with Tools Used recording actual treg endpoints, costs and spend total, skipped families and reasons, and vault-note outcome; include the closing line. Keep the Reddit gap unresolved under Comparison / Gaps. Progress narration never substitutes for this report.
