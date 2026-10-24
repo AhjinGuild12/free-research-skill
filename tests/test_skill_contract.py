@@ -25,13 +25,13 @@ TREG_FREE = {
 }
 TREG_NEVER = {
     "call_media", "my_tools", "catalog_request", "feedback",
-    "tinyfish.web.agent.run", "treg.web.search", "treg.web.extract",
+    "tinyfish.web.agent.run", "treg.web.search",
     "treg.companies.enrich", "treg.x.search.posts",
 }
 TREG_PAID = {
     "scrapecreators.reddit.search.posts", "anyapi.reddit.search",
     "anyapi.x.search.posts", "crawl4ai.x.search.posts",
-    "spyfu.google.domain.competitors",
+    "spyfu.google.domain.competitors", "treg.web.extract",
     "scrapecreators.x.v1-youtube-video-transcript", "crawl4ai.youtube.video.captions",
 }
 MODES = ("free", "balanced", "deep", "thorough")
@@ -50,7 +50,7 @@ CLOSING_LINE = "your agent is only as good as the worst source it believed."
 TRACE_IDS = (
     tuple(f"T{number}" for number in range(1, 18))
     + ("T18a", "T18b", "T19", "T20", "T21", "T22", "T23", "L1", "L2")
-    + tuple(f"T{number}" for number in range(24, 36))
+    + tuple(f"T{number}" for number in range(24, 37))
 )
 KEY_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+){1,3}$")
 KEY_MAX_BYTES = 48
@@ -417,7 +417,7 @@ class TestSkillContract(unittest.TestCase):
             "YouTube captions for a discovered video": {
                 "scrapecreators.x.v1-youtube-video-transcript", "crawl4ai.youtube.video.captions",
             },
-            "General page extraction": set(),
+            "General page extraction": {"treg.web.extract"},
         }
         actual = {row[0]: set(re.findall(r"`([^`]+)`", row[1])) for row in rows[2:]}
         self.assertEqual(expected, actual)
@@ -534,9 +534,63 @@ class TestSkillContract(unittest.TestCase):
         allowed = _treg_callable_ids(routing, "## treg paid allowlist", "## treg ops card")
         self.assertEqual(TREG_PAID, allowed)
         self.assertFalse(allowed & TREG_NEVER)
-        for forbidden in ("tinyfish.web.agent.run", "treg.web.extract"):
+        for forbidden in ("tinyfish.web.agent.run", "treg.web.search"):
             mutated = routing.replace("`anyapi.reddit.search`", f"`{forbidden}`")
             self.assertNotEqual(TREG_PAID, _treg_callable_ids(mutated, "## treg paid allowlist", "## treg ops card"))
+
+    def test_treg_web_extract_is_capped_paid_fallback(self) -> None:
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        routing = TOOL_ROUTING.read_text(encoding="utf-8")
+        extract = "`treg.web.extract`"
+        for label, text in (("SKILL.md", skill), ("tool-routing.md", routing)):
+            with self.subTest(file=label):
+                never = text.split("Never-use:", 1)[1].split("\n\n", 1)[0]
+                never_list = never.split("No publishing", 1)[0]
+                self.assertNotIn(extract, never_list)
+                for name in TREG_NEVER:
+                    self.assertIn(f"`{name}`", never_list)
+        self.assertEqual({"treg.web.extract"}, TREG_PAID & {"treg.web.extract"})
+        self.assertFalse(TREG_NEVER & TREG_PAID)
+        card = routing.split("## treg ops card", 1)[1].split("## Firecrawl ops card", 1)[0]
+        rules = card.split("7. `treg.web.extract`", 1)[1]
+        for phrase in (
+            "X-Treg-Route-Max-Cost",
+            "`headers` slot on every call",
+            "lesser of the Modes-table per-call ceiling and the remaining invocation dollar budget",
+            "counts as one treg paid call",
+            "_treg.charged_micro",
+            "`cost_usd`",
+            "`_treg.served_by`",
+            "Read only `output`; ignore `raw`",
+            "url-ledger",
+            "Never in `--free`",
+            "Never a search or discovery tool",
+            "only for URLs this call did not answer",
+            "a call without it is forbidden",
+        ):
+            self.assertIn(phrase, rules)
+        self.assertIn("`route_max_cost`", rules)
+        self.assertIn('"returned no URLs"', rules)
+        table = routing.split("## treg paid allowlist", 1)[1].split("## treg ops card", 1)[0]
+        row = next(line for line in table.splitlines() if line.startswith("| General page extraction |"))
+        self.assertIn("`treg.web.extract` (routed, capped by header)", row)
+
+    def test_treg_web_extract_never_permitted_in_free_mode(self) -> None:
+        skill = SKILL_MD.read_text(encoding="utf-8")
+        routing = TOOL_ROUTING.read_text(encoding="utf-8")
+        free_row = next(line for line in skill.splitlines() if line.startswith("| **free**"))
+        self.assertNotIn("extract", free_row)
+        free_allowlist = skill.split("### treg free allowlist", 1)[1].split("### 3a.", 1)[0]
+        self.assertNotIn("treg.web.extract", free_allowlist)
+        self.assertEqual(TREG_FREE, _treg_callable_ids(skill, "### treg free allowlist", "### 3a."))
+        free_ban = next(line for line in skill.splitlines() if line.startswith("`--free` never escalates"))
+        self.assertIn("no treg paid endpoint (`treg.web.extract` included)", free_ban)
+        step3 = skill.split("## Step 3:", 1)[1].split("## Step 4:", 1)[0]
+        self.assertNotIn("treg.web.extract", step3)
+        self.assertIn("Never in `--free`", routing)
+        scenarios = EVAL_SCENARIOS.read_text(encoding="utf-8")
+        t36 = scenarios.split("## T36.", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("any use in `--free`", t36)
 
     def test_at_most_ceilings_cannot_evade_contract(self) -> None:
         text = TOOL_ROUTING.read_text(encoding="utf-8")
@@ -622,6 +676,7 @@ class TestSkillContract(unittest.TestCase):
             "T33": ("--thorough", "checklist", "remaining-gaps: none", "no paid call", "Step 6"),
             "T34": ("--thorough", "one non-primary origin", "gap:", "treg", "Modes-table limits", "--balanced"),
             "T35": ("Grok", "TinyFish MCP connected", "treg first", "host web"),
+            "T36": ("--balanced", "X-Treg-Route-Max-Cost", "_treg.charged_micro", "url-ledger", "Exa and Firecrawl"),
         }.items():
             with self.subTest(trace=trace_id):
                 self.assertEqual(1, len(re.findall(rf"^## {trace_id}\.", text, re.MULTILINE)))
@@ -943,7 +998,8 @@ class TestSkillContract(unittest.TestCase):
         t29 = scenarios.split("## T29.", 1)[1].split("\n## ", 1)[0]
         required = next(line for line in t29.splitlines() if line.startswith("- **Required:**"))
         self.assertIn(reason, required)
-        self.assertIn("A request to use a routed endpoint is also rejected.", required)
+        self.assertIn("A request to use a forbidden routed endpoint", required)
+        self.assertNotIn("`treg.web.extract`", required)
         for text in (skill, routing, scenarios):
             for retired in (
                 "no pre-call price", "lack pre-call prices",

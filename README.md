@@ -49,7 +49,7 @@ A full free run needs both companions. This plugin does not include them.
 
 If last30days fails, or both TinyFish MCP and treg are unavailable, the skill still loads. It labels the gap under **Tools Used** and continues with free host tools. It does not pretend those tools ran.
 
-**treg paid endpoints**, **Exa**, **Firecrawl**, and **Brave Search** are optional paid layers for `--balanced` / `--deep` / `--thorough` only. They never run in free mode. treg verifies price before each call and records actual cost or a labeled catalog estimate; an unexpected charge on a free endpoint stops treg for that run and switches to host web.
+**treg paid endpoints**, **Exa**, **Firecrawl**, and **Brave Search** are optional paid layers for `--balanced` / `--deep` / `--thorough` only. They never run in free mode. treg verifies price before each call and records actual cost or a labeled catalog estimate; an unexpected charge on a free endpoint stops treg for that run and switches to host web. As a capped fallback for pages the free fetch could not read, treg may call `treg.web.extract` (header-capped, never in free mode, never for discovery); Firecrawl then reads only the URLs it did not answer.
 
 ## Examples
 
