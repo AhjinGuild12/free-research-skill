@@ -131,7 +131,8 @@ IDENTIFIER_FIRST_RULE = (
 )
 CHEAPEST_FIRST_RULE = (
     "Inside the price facet, call Google Shopping before Amazon. "
-    "Amazon runs only when Shopping returned nothing."
+    "Amazon runs only when Shopping leaves the named price facet unanswered, "
+    "including irrelevant listings or listings with no prices."
 )
 FACET_USABLE_BODY = (
     "A row of posts or reviews with text, rating, and date is a usable body for that facet. "
@@ -480,7 +481,11 @@ def _assert_facet_price_table(routing: str, ceiling: Decimal) -> None:
         if by_label[label][1] != price:
             raise AssertionError(f"{label}: price {by_label[label][1]!r} != {price!r}")
     for label, _endpoints, price in rows:
-        for amount in re.findall(r"\d+\.\d+", price):
+        if label == "General page extraction":
+            continue
+        if not re.fullmatch(r"\d+(?:\.\d+)?(?: / \d+(?:\.\d+)?)*(?: per (?:success|call))?", price):
+            raise AssertionError(f"{label}: malformed fixed-price cell {price!r}")
+        for amount in re.findall(r"\d+(?:\.\d+)?", price):
             if Decimal(amount) > ceiling:
                 raise AssertionError(f"{label}: USD {amount} is above the per-call ceiling {ceiling}")
     for endpoint_id in _treg_callable_ids(routing, "## treg paid allowlist", "## treg ops card"):
@@ -680,6 +685,66 @@ class TestSkillContract(unittest.TestCase):
         )
         with self.assertRaises(AssertionError):
             _assert_facet_price_table(without_reviews, ceiling)
+
+    def test_fixed_price_cells_parse_integers_and_reject_malformed_prices(self) -> None:
+        routing = TOOL_ROUTING.read_text(encoding="utf-8")
+        ceiling = Decimal(_treg_limits(SKILL_MD.read_text(encoding="utf-8"))["balanced"][2])
+        for price in ("0", "0 / 0.001 per call"):
+            with self.subTest(price=price):
+                mutated = routing.replace(
+                    "## treg ops card",
+                    f"| Price: Extra | `crawl4ai.example.extra` | {price} |\n\n## treg ops card",
+                    1,
+                )
+                _assert_facet_price_table(mutated, ceiling)
+        for price, error in (
+            ("9 / 9", "above the per-call ceiling"),
+            ("9.99 / 0", "above the per-call ceiling"),
+            ("unknown", "malformed fixed-price cell"),
+            ("-0.001", "malformed fixed-price cell"),
+            ("0.001 /", "malformed fixed-price cell"),
+            ("0.001oops", "malformed fixed-price cell"),
+            ("0.001.2", "malformed fixed-price cell"),
+        ):
+            with self.subTest(price=price):
+                mutated = routing.replace(
+                    "## treg ops card",
+                    f"| Price: Extra | `crawl4ai.example.extra` | {price} |\n\n## treg ops card",
+                    1,
+                )
+                with self.assertRaisesRegex(AssertionError, error):
+                    _assert_facet_price_table(mutated, ceiling)
+
+    def test_identifier_cases_match_each_routing_row(self) -> None:
+        cases = {
+            "Social: Facebook page posts (URL known)": "Facebook page URL",
+            "Price: Walmart product (id known)": "Walmart product id",
+            "Price: Shopify store (URL known)": "Shopify store URL",
+            "Reviews: App Store (app id known)": "App Store app id",
+            "Reviews: Google Play (app id known)": "Google Play app id",
+            "Reviews: Trustpilot (domain known)": "Trustpilot domain",
+            "Reviews: Yelp (business known)": "Yelp business",
+            "Reviews: Glassdoor (company known)": "Glassdoor company",
+            "Reviews: Tripadvisor (place known)": "Tripadvisor place",
+            "Reviews: Google Maps (place id known)": "Google Maps place id",
+        }
+        routing_rows = dict((label, endpoints) for label, endpoints, _price in
+                            _allowlist_data_rows(_paid_allowlist_block(TOOL_ROUTING.read_text(encoding="utf-8"))))
+        trace = EVAL_SCENARIOS.read_text(encoding="utf-8").split("## T39.", 1)[1].split("\n## ", 1)[0]
+        rows = [
+            [cell.strip() for cell in line.strip("|").split("|")]
+            for line in trace.splitlines() if line.startswith("|")
+        ]
+        self.assertEqual(set(cases), {row[0] for row in rows[2:]})
+        for row in rows[2:]:
+            label, identifier, present, missing = row
+            with self.subTest(row=label):
+                self.assertIn(label, routing_rows)
+                self.assertEqual(cases[label], identifier)
+                self.assertEqual(f"Eligible with {identifier}", present)
+                self.assertEqual(f"Skip without {identifier}; gap stays open", missing)
+        self.assertIn("apply each row independently", trace)
+        self.assertIn("agent's own free search or fetch found the required identifier", trace)
 
     def test_identifier_first_and_free_mode_ban_facet_endpoints(self) -> None:
         skill = SKILL_MD.read_text(encoding="utf-8")
@@ -965,11 +1030,13 @@ class TestSkillContract(unittest.TestCase):
             "T37": ("--balanced", "crawl4ai.tiktok.search.videos", "Titles-only rows stay leads", "Exa does not"),
             "T38": (
                 "Google Shopping", "crawl4ai.google.serp.shopping", "Amazon",
-                "returned nothing", "--free", FREE_FOLLOWUP_LINE,
+                "returned nothing", "Nonempty but unusable Shopping variant",
+                "irrelevant listings or listings with no prices", "skip Amazon",
+                "--free", FREE_FOLLOWUP_LINE,
             ),
             "T39": (
                 "litescrape.app_store.reviews", "app id", "Exa does not",
-                "business URL", "gap stays open",
+                "Required identifier", "gap stays open",
             ),
         }.items():
             with self.subTest(trace=trace_id):

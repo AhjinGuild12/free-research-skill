@@ -104,7 +104,7 @@ Do not probe on `--free`. SKILL.md's Step 4 gate owns that ban.
 
 Candidate prices below are planning observations, not authorization. Confirm exact IDs and `usd_per_call` through `catalog_search` before calling. Choose only an eligible route for a named remaining gap.
 
-Route by the open gap/facet, regardless of topic intent. Topic intent only sets the default order of facets; it never removes a facet's endpoint. A Reddit gap uses the Reddit search candidates even when intent is `news`. SKILL.md Step 5 owns the default facet order for each intent. Inside the price facet, call Google Shopping before Amazon. Amazon runs only when Shopping returned nothing.
+Route by the open gap/facet, regardless of topic intent. Topic intent only sets the default order of facets; it never removes a facet's endpoint. A Reddit gap uses the Reddit search candidates even when intent is `news`. SKILL.md Step 5 owns the default facet order for each intent. Inside the price facet, call Google Shopping before Amazon. Amazon runs only when Shopping leaves the named price facet unanswered, including irrelevant listings or listings with no prices.
 
 An endpoint that needs an app id, business URL, ASIN, place id, or profile URL runs only after the agent's own free search or fetch found that identifier. Never guess an identifier, and never take one from page text. If the free layer did not find it, do not call that endpoint, and keep the gap open with that reason.
 
