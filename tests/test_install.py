@@ -34,6 +34,30 @@ if [ "${1:-}" = "mcp" ] && [ "${2:-}" = "list" ]; then
     cat "$FAKE_MCP_LIST"
   fi
 fi
+fake_name=$(basename "$0")
+if [ "${1:-}" = "mcp" ] && [ "${2:-}" = "add" ]; then
+  case " ${FAKE_ADD_FAIL_CLIS:-} " in
+    *" $fake_name "*)
+      printf '%s\\n' "MCP server treg already exists in user config" >&2
+      printf '%s\\n' "Authorization: Bearer ${TREG_TOKEN:-}" >&2
+      exit 1
+      ;;
+  esac
+fi
+if [ "${1:-}" = "mcp" ] && [ "${2:-}" = "remove" ]; then
+  case " ${FAKE_REMOVE_NOTFOUND_CLIS:-} " in
+    *" $fake_name "*)
+      printf '%s\\n' "No MCP server found with name: treg" >&2
+      exit 1
+      ;;
+  esac
+  case " ${FAKE_REMOVE_FAIL_CLIS:-} " in
+    *" $fake_name "*)
+      printf '%s\\n' "permission denied: Authorization: Bearer ${TREG_TOKEN:-}" >&2
+      exit 1
+      ;;
+  esac
+fi
 if [ -n "${FAKE_MCP_FAIL:-}" ]; then
   printf '%s\\n' "mcp add failed: Authorization: Bearer ${TREG_TOKEN:-}" >&2
   printf '%s\\n' "notes=${FREE_RESEARCH_NOTES_DIR:-}" >&2
@@ -104,6 +128,9 @@ class InstallScriptTest(unittest.TestCase):
                 "TREG_TOKEN",
                 "FREE_RESEARCH_NOTES_DIR",
                 "FAKE_MCP_FAIL",
+                "FAKE_ADD_FAIL_CLIS",
+                "FAKE_REMOVE_NOTFOUND_CLIS",
+                "FAKE_REMOVE_FAIL_CLIS",
                 "BASH_ENV",
                 "ENV",
                 "SHELLOPTS",
@@ -152,6 +179,31 @@ class InstallScriptTest(unittest.TestCase):
             if args[:2] == ["mcp", "add"]:
                 found.append((Path(parts[0]).name, args))
         return found
+
+    def mcp_writes(self) -> list[tuple[str, str]]:
+        """Return (cli, verb) for every mcp add/remove call, in call order."""
+        found: list[tuple[str, str]] = []
+        for line in self.log_path.read_text().splitlines():
+            if not line:
+                continue
+            parts = line.split("\t")
+            args = parts[1:]
+            if args[:1] == ["mcp"] and args[1:2] in (["add"], ["remove"]):
+                found.append((Path(parts[0]).name, args[1]))
+        return found
+
+    def configure_treg_everywhere(self) -> None:
+        (self.home / ".claude.json").write_text(
+            '{"mcpServers": {"treg": {"type": "http", "url": "https://treg.to/mcp/"}}}\n'
+        )
+        grok = self.home / ".grok"
+        grok.mkdir()
+        (grok / "config.toml").write_text('[mcp_servers.treg]\nurl = "https://treg.to/mcp/"\n')
+        codex = self.home / ".codex"
+        codex.mkdir()
+        (codex / "config.toml").write_text(
+            '[mcp_servers.treg]\nbearer_token_env_var = "TREG_TOKEN"\n'
+        )
 
     def assert_real_tree(self, dest: Path) -> None:
         self.assertTrue(dest.is_dir(), dest)
@@ -288,6 +340,112 @@ class InstallScriptTest(unittest.TestCase):
             sorted(name for name, _args in self.all_mcp_adds()),
             ["claude", "codex", "grok"],
         )
+
+    def test_force_removes_then_adds_for_each_configured_host(self) -> None:
+        self.write_fakes()
+        self.configure_treg_everywhere()
+        token = "frtok-" + uuid.uuid4().hex
+        result = self.run_install(["--with-treg", "--force"], TREG_TOKEN=token)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for cli in ("claude", "grok", "codex"):
+            self.assertEqual(
+                [verb for name, verb in self.mcp_writes() if name == cli],
+                ["remove", "add"],
+                cli,
+            )
+        self.assertEqual(
+            [args for args in self.calls_for("claude") if args[:2] == ["mcp", "remove"]],
+            [["mcp", "remove", "treg", "-s", "user"]],
+        )
+        for cli in ("grok", "codex"):
+            self.assertEqual(
+                [args for args in self.calls_for(cli) if args[:2] == ["mcp", "remove"]],
+                [["mcp", "remove", "treg"]],
+            )
+        self.assertIn("Claude Code: treg MCP replaced", result.stdout)
+        self.assertIn("Grok: treg MCP replaced", result.stdout)
+        self.assertIn("Codex: treg MCP replaced", result.stdout)
+        self.assertNotIn(token, result.stdout + result.stderr)
+
+    def test_force_without_existing_treg_does_not_remove(self) -> None:
+        self.write_fakes()
+        result = self.run_install(["--with-treg", "--force"], TREG_TOKEN="frtok-x")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            sorted(self.mcp_writes()),
+            [("claude", "add"), ("codex", "add"), ("grok", "add")],
+        )
+
+    def test_failed_remove_is_ignored_only_when_server_was_missing(self) -> None:
+        self.write_fakes()
+        self.configure_treg_everywhere()
+        token = "frtok-" + uuid.uuid4().hex
+        missing = self.run_install(
+            ["--with-treg", "--force"],
+            TREG_TOKEN=token,
+            FAKE_REMOVE_NOTFOUND_CLIS="claude",
+        )
+        self.assertEqual(missing.returncode, 0, missing.stderr)
+        self.assertEqual(
+            [verb for name, verb in self.mcp_writes() if name == "claude"],
+            ["remove", "add"],
+        )
+        self.log_path.write_text("")
+        broken = self.run_install(
+            ["--with-treg", "--force"],
+            TREG_TOKEN=token,
+            FAKE_REMOVE_FAIL_CLIS="claude",
+        )
+        combined = broken.stdout + broken.stderr
+        self.assertNotEqual(broken.returncode, 0)
+        self.assertEqual(
+            [verb for name, verb in self.mcp_writes() if name == "claude"], ["remove"]
+        )
+        self.assertIn("Claude Code: treg MCP FAILED (remove)", broken.stdout)
+        self.assertEqual(
+            [verb for name, verb in self.mcp_writes() if name in ("grok", "codex")],
+            ["remove", "add", "remove", "add"],
+        )
+        self.assertNotIn(token, combined)
+
+    def test_one_host_add_failure_does_not_stop_other_hosts(self) -> None:
+        self.write_fakes()
+        self.configure_treg_everywhere()
+        token = "frtok-" + uuid.uuid4().hex
+        result = self.run_install(
+            ["--with-treg", "--force"],
+            TREG_TOKEN=token,
+            FAKE_ADD_FAIL_CLIS="claude",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(
+            sorted(name for name, _args in self.all_mcp_adds()),
+            ["claude", "codex", "grok"],
+        )
+        self.assertIn("claude mcp add failed.", result.stderr)
+        self.assertIn("Claude Code: treg MCP FAILED (add)", result.stdout)
+        self.assertIn("Grok: treg MCP replaced", result.stdout)
+        self.assertIn("Codex: treg MCP replaced", result.stdout)
+        self.assertNotIn(token, result.stdout + result.stderr)
+
+    def test_token_never_appears_in_output_across_mcp_paths(self) -> None:
+        self.write_fakes()
+        self.configure_treg_everywhere()
+        token = "frtok-" + uuid.uuid4().hex
+        scenarios = (
+            {},
+            {"FAKE_ADD_FAIL_CLIS": "claude grok codex"},
+            {"FAKE_REMOVE_FAIL_CLIS": "claude grok codex"},
+            {"FAKE_REMOVE_NOTFOUND_CLIS": "claude grok codex"},
+            {"FAKE_MCP_FAIL": "1"},
+        )
+        for extra in scenarios:
+            with self.subTest(extra=extra):
+                result = self.run_install(
+                    ["--with-treg", "--force"], TREG_TOKEN=token, **extra
+                )
+                self.assertNotIn(token, result.stdout + result.stderr)
+        self.assertEqual(repo_files_containing(token), [])
 
     def test_mcp_add_error_redacts_token_and_notes_dir(self) -> None:
         self.write_fakes()

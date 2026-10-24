@@ -32,8 +32,11 @@ Options:
   --with-treg   Add the treg MCP server (https://treg.to/mcp/) for each
                 present host. Requires TREG_TOKEN in the environment.
                 Skips a host that already has treg configured unless --force.
+                Every present host is attempted; a failure on one host does
+                not stop the others, and a per-host result list is printed.
                 The token is not printed, logged, or written into the repo.
-  --force       Overwrite newer destination files and re-add treg MCP.
+  --force       Overwrite newer destination files and replace treg MCP
+                (runs `mcp remove treg` first when it is already configured).
   --help        Show this help.
 
 Exit status:
@@ -479,60 +482,133 @@ report_missing() {
   printf '%s\n' "${missing[0]}, ${missing[1]}, and ${missing[2]} were not found."
 }
 
+# Runs a host CLI, capturing combined output in MCP_OUTPUT and status in MCP_STATUS.
+run_mcp_capture() {
+  local cli="$1"
+  shift
+  set +e
+  MCP_OUTPUT=$("$cli" "$@" 2>&1)
+  MCP_STATUS=$?
+  set -e
+}
+
+report_mcp_failure() {
+  local cli="$1"
+  local verb="$2"
+  printf '%s\n' "${cli} mcp ${verb} failed." >&2
+  printf '%s\n' "$MCP_OUTPUT" | redact >&2
+}
+
 run_mcp_add() {
   local cli="$1"
   shift
-  local output status
-  set +e
-  output=$("$cli" "$@" 2>&1)
-  status=$?
-  set -e
-  if [[ "$status" -ne 0 ]]; then
-    printf '%s\n' "${cli} mcp add failed." >&2
-    printf '%s\n' "$output" | redact >&2
+  run_mcp_capture "$cli" "$@"
+  if [[ "$MCP_STATUS" -ne 0 ]]; then
+    report_mcp_failure "$cli" add
     return 1
   fi
   return 0
 }
 
-add_treg_host() {
+# A failed remove is harmless only when the server was not there to remove.
+remove_treg_host() {
   local cli="$1"
-  local label="$2"
-  if ! command -v "$cli" >/dev/null 2>&1; then
-    printf '%s\n' "${label} CLI was not found. Skipped treg MCP setup."
-    return 0
-  fi
-  if [[ "$FORCE" -eq 0 ]] && treg_configured "$cli"; then
-    printf '%s\n' "${label}: treg MCP already configured."
-    return 0
-  fi
   case "$cli" in
-    claude)
-      run_mcp_add claude mcp add --scope user --transport http treg "$TREG_URL" -H "Authorization: Bearer ${TREG_TOKEN}"
-      ;;
-    grok)
-      run_mcp_add grok mcp add treg "$TREG_URL" -H "Authorization: Bearer ${TREG_TOKEN}"
-      ;;
-    codex)
-      run_mcp_add codex mcp add treg --url "$TREG_URL" --bearer-token-env-var TREG_TOKEN
-      ;;
+    claude) run_mcp_capture claude mcp remove treg -s user ;;
+    grok) run_mcp_capture grok mcp remove treg ;;
+    codex) run_mcp_capture codex mcp remove treg ;;
     *)
       printf '%s\n' "Unknown host: ${cli}" >&2
       return 1
       ;;
   esac
+  if [[ "$MCP_STATUS" -eq 0 ]]; then
+    return 0
+  fi
+  if printf '%s\n' "$MCP_OUTPUT" | grep -Eiq 'not found|does not exist|no such|no mcp server|unknown (mcp )?server|not configured'; then
+    return 0
+  fi
+  report_mcp_failure "$cli" remove
+  return 1
 }
 
+# Sets HOST_RESULT to a short outcome; returns 1 only when the host failed.
+add_treg_host() {
+  local cli="$1"
+  local label="$2"
+  local already=0
+  HOST_RESULT=""
+  if ! command -v "$cli" >/dev/null 2>&1; then
+    printf '%s\n' "${label} CLI was not found. Skipped treg MCP setup."
+    HOST_RESULT="skipped (CLI not found)"
+    return 0
+  fi
+  if treg_configured "$cli"; then
+    already=1
+  fi
+  if [[ "$already" -eq 1 && "$FORCE" -eq 0 ]]; then
+    printf '%s\n' "${label}: treg MCP already configured."
+    HOST_RESULT="already configured"
+    return 0
+  fi
+  if [[ "$already" -eq 1 ]] && ! remove_treg_host "$cli"; then
+    HOST_RESULT="FAILED (remove)"
+    return 1
+  fi
+  case "$cli" in
+    claude)
+      run_mcp_add claude mcp add --scope user --transport http treg "$TREG_URL" -H "Authorization: Bearer ${TREG_TOKEN}" || {
+        HOST_RESULT="FAILED (add)"
+        return 1
+      }
+      ;;
+    grok)
+      run_mcp_add grok mcp add treg "$TREG_URL" -H "Authorization: Bearer ${TREG_TOKEN}" || {
+        HOST_RESULT="FAILED (add)"
+        return 1
+      }
+      ;;
+    codex)
+      run_mcp_add codex mcp add treg --url "$TREG_URL" --bearer-token-env-var TREG_TOKEN || {
+        HOST_RESULT="FAILED (add)"
+        return 1
+      }
+      ;;
+    *)
+      printf '%s\n' "Unknown host: ${cli}" >&2
+      HOST_RESULT="FAILED (unknown host)"
+      return 1
+      ;;
+  esac
+  if [[ "$already" -eq 1 ]]; then
+    HOST_RESULT="replaced"
+  else
+    HOST_RESULT="added"
+  fi
+  return 0
+}
+
+# Every present host is attempted; one failure never stops the others.
 add_treg() {
   local failed=0
-  if host_present claude .claude; then
-    add_treg_host claude "Claude Code" || failed=1
-  fi
-  if host_present grok .grok; then
-    add_treg_host grok "Grok" || failed=1
-  fi
-  if host_present codex .codex; then
-    add_treg_host codex "Codex" || failed=1
+  local results=""
+  local spec cli config_dir label
+  for spec in "claude|.claude|Claude Code" "grok|.grok|Grok" "codex|.codex|Codex"; do
+    cli=${spec%%|*}
+    spec=${spec#*|}
+    config_dir=${spec%%|*}
+    label=${spec#*|}
+    if ! host_present "$cli" "$config_dir"; then
+      continue
+    fi
+    if ! add_treg_host "$cli" "$label"; then
+      failed=1
+    fi
+    results="${results}${label}: treg MCP ${HOST_RESULT}"$'\n'
+  done
+  if [[ -n "$results" ]]; then
+    printf '%s\n' "treg MCP results"
+    printf '%s' "$results"
   fi
   return "$failed"
 }
