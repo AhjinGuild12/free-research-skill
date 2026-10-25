@@ -2,15 +2,30 @@
 
 > *"You already have the page. Why is the agent buying another copy of the headline?"*
 
-## Current state (2026-10-24)
+## Current state (2026-10-25)
 
-Version 1.4.0 is on `feat/treg-social-price-review-facets`. The run card and all four manifests use that version. Version 1.3.0, prepared on `feat/thorough-portable-install`, added `--thorough` above free, balanced, and deep; free stays the default. The old modes keep their close test and budgets. Thorough turns a full intent checklist into named facets before the gate, and keeps decision-bearing facets open until two independent origins or one primary source answer them. It asks for a report with enough concrete detail to work from, and lists what it still could not answer. Two non-primary origins can close a thorough facet without confirming its claim: the verification tail still wants three origins or one primary.
+Version 1.4.0 is on `main` (PR #6 merged as `7d684f2`, after PR #5 as `2b53d2a`). All six copies match: repo, Claude Code, Grok live, Grok pack, Codex, Codex pack. `scripts/install.sh --check` on this Mac reports 1.4.0 and treg configured on all three hosts, with `TREG_TOKEN set` for Codex. 115 tests pass.
+
+Live proof on this Mac:
+
+- **Grok free run:** treg was the whole free layer (TinyFish MCP denied), every call cost USD 0, and the run wrote a vault note.
+- **Grok balanced and thorough runs on "is Notion worth it":** both returned App Store and Google Play ratings, official and App Store prices, dated Reddit complaints, and TikTok captions. Both spent USD 0, because free treg fetches closed every facet.
+- **Direct calls on the new facets:** `crawl4ai.tiktok.search.videos` (18 videos), `litescrape.google.serp.shopping`, and `litescrape.app_store.reviews` (dated review text). Each billed exactly its catalog price, USD 0.0008 total, matching the balance drop from 8.791179 to 8.790379.
+- **One live `treg.web.extract` call:** run on a Crunchbase page with `X-Treg-Route-Max-Cost: 0.02`, it cost USD 0.0007.
+
+Not yet proven:
+
+- No full `/free-research` run inside Codex.
+- No skill run that opened a paid facet on its own; the endpoints were proven by direct calls.
+- This Claude Code session needs a restart to pick up the rotated treg token.
+
+Version 1.3.0 added `--thorough` above free, balanced, and deep; free stays the default. The old modes keep their close test and budgets. Thorough turns a full intent checklist into named facets before the gate, and keeps decision-bearing facets open until two independent origins or one primary source answer them. It asks for a report with enough concrete detail to work from, and lists what it still could not answer. Two non-primary origins can close a thorough facet without confirming its claim: the verification tail still wants three origins or one primary.
 
 Every host now starts free web reads with treg's zero-priced TinyFish allowlist, then TinyFish MCP, then host web. Paid order is leftover free fetch, treg by the open facet, Exa, Firecrawl, Brave, then opted-in `parallel-cli`. Intent orders facets; it does not choose which endpoints a facet is allowed to use. SKILL.md's Modes table owns the ceilings, with README as its mirror. AnyAPI trim options (`max_items`, `fields`) stay in the `query` slot, and paid calls still send the bounded `X-Treg-Route-Max-Cost` header. A nonzero charge on a free endpoint disables treg and switches to host web.
 
 The portable install flow is `scripts/install.sh --check`, then `scripts/install.sh --with-treg`, then `--check` again. Jan supplies `TREG_TOKEN` in the environment; the script never prints it. Codex keeps an environment reference, while Claude Code and Grok keep the header in their own config. The script copies the complete tree for supported hosts present on the Mac and refuses newer destination files unless `--force` is explicit. Existing treg setup is skipped unless forced. Check mode reports versions, last30days, treg, duplicates, and notes-variable presence without printing secrets or the notes path. The Grok marketplace v1.0.0 duplicate is a warning, and removing it stays Jan's choice. The separate pack copies still need the six-copy workflow below.
 
-This is repo work, not a receipt for this Mac. Codex treg auth, install checks, six-copy parity after copying, and the cross-host smokes remain host-owned U6 proof. The plan records Codex's unset token and the older Grok duplicate; their current state needs a fresh check. Run free and balanced on all three hosts and thorough on at least one, with a hard timeout and paid-tool denies as specified by the plan. Record balances around paid runs serially. The two selected contract/plugin test modules pass: 47 tests run, with one opt-in copy-parity skip. No new live smoke or install success is claimed here.
+The installer does not touch the two skill-pack copies. After an install, rsync `skills/free-research/` into `~/Projects/skill-pack/grok/free-research` and `~/Projects/skill-pack/codex/free-research`, then run the copy-parity check. The Grok marketplace v1.0.0 duplicate is still installed. Removing it is Jan's call.
 
 Historical live evidence, 2026-10-17: treg TinyFish search and fetch reported zero cost. One manual paid X search reported USD 0.0006, matching the balance drop from 8.803199 to 8.802599. The Claude Code free and balanced runs both spent zero because free reads closed the gaps. Those runs predate 1.3.0 and do not prove thorough or the portable installer.
 
@@ -20,7 +35,7 @@ Only treg MCP `catalog_search`, `call`, `balance`, and invited `review` are allo
 
 Version 1.4.0 adds social posts, prices and listings, and reviews and ratings to the paid routing table. The catalog also has routes that cost nothing when they run through a personal login. Those stayed out.
 
-A platform can flag an account an agent is driving. A flagged TikTok, Amazon, or review-site login is a worse bill than the paid call, which on these rows is a fraction of a cent and still has to fit the Modes table. Free mode still spends nothing, and it does not use a connected-account route. Posting and publishing stay never-use. A later opt-in could add read-only account routes. This version does not. No live facet smoke was run with this change.
+A platform can flag an account an agent is driving. A flagged TikTok, Amazon, or review-site login is a worse bill than the paid call, which on these rows is a fraction of a cent and still has to fit the Modes table. Free mode still spends nothing, and it does not use a connected-account route. Posting and publishing stay never-use. A later opt-in could add read-only account routes. This version does not. One endpoint per facet type was called live and billed its catalog price.
 
 ---
 
@@ -380,6 +395,22 @@ SKILL.md said a facet closes when "the last Step 4 family returned no new URLs."
 The ceiling tests compared dollar caps inside the Modes table and the README mirror. Codex added "For `--balanced`, treg may spend USD 1.00 total and USD 0.10 per call" to the routing reference, in memory, and all four ceiling tests stayed green. That is a second rate card the agent could follow. The new test rejects any normative treg dollar ceiling outside the Modes table unless it matches, and it carries that exact mutation as a negative case. Observed catalog prices in the candidate table stay allowed, because they are prices, not permission.
 **Rule:** A one-owner rule needs a test that hunts for second owners. Add the mutation that would fool the old test, and assert it fails.
 
+**A catalog price can be a floor, not a fixed fare.**
+The crawl4ai rows looked cheap and fixed: USD 0.0005 for TikTok, USD 0.0135 for Amazon. The fine print in `treg catalog get` says otherwise. crawl4ai bills by page effort: half price when archived, normal, double for a browser, and 4x when the site fights back. Most rows stay pennies even at 4x. Amazon would hit USD 0.054, over the USD 0.02 per-call ceiling. It is like a taxi meter that reads the posted fare until traffic hits. The fix reserves 4x for every `crawl4ai.*` call, skips any row whose 4x is over the ceiling, and moves Amazon to `justoneapi` at a fixed USD 0.0148. The test applies the same 4x.
+**Rule:** Read the limits line, not just the price column. Reserve the worst-case multiplier before the call.
+
+**An installer that only works once is a time bomb.**
+The first install stamped every copied file with the current time. The second plain run saw "destination newer than source" on all of them and refused the whole update. The test meant to prove the newer-file guard passed for the wrong reason: every file was "newer" after the first run. Gemini found it by reading, and a two-run test in a temp HOME reproduced it. The fix compares content first with `cmp -s`, so identical files are not "newer edits", and copies with `cp -p`. It also checks every file before writing, so a host is never left half on one version.
+**Rule:** Test an installer by running it twice. A guard test has to fail on the second clean run before you trust it.
+
+**A placeholder in a credential slot looks exactly like a credential.**
+The setup instruction showed `export TREG_TOKEN="ILAGAY_ANG_BAGONG_TOKEN"` as an example, and it was run as-is. `~/.zshenv` now held a token-shaped string that was not a token. Running `install.sh --with-treg --force` then would have pushed that fake header into the Claude Code and Grok configs and broken treg on both. A check that counted the placeholder string, without printing anything else, caught it before the install ran. After Jan put the real token in, the installer ran and a balance call through Grok proved the token worked.
+**Rule:** Never hand over a credential command that runs as-is with a placeholder. Before using a credential the user just set, check it is not the example value, without printing it.
+
+**Plan the fallback model before the quota runs out.**
+Codex hit its usage limit mid-task and failed after one read. The work was not lost because the fallback was already agreed: split work between Codex and Grok, and if Codex is out, Gemini 4 Argon through `agy` or a Sonnet 5.5 subagent. Sonnet finished `treg.web.extract` and the review fixes. Gemini did a ten-finding review. Gemini's first headless run produced nothing, because headless mode cannot ask for command permission. The rerun used `--sandbox --dangerously-skip-permissions --mode plan`, and HEAD was checked afterwards to prove it changed nothing.
+**Rule:** Write the model fallback order into memory. For a headless reviewer, sandbox it and verify the repo is unchanged afterwards.
+
 ### If I could do it again, I would...
 
 - Set the controller's read cap and write cap to the same number before U1, and keep the full adapter log next to any truncated copy.
@@ -394,6 +425,10 @@ The ceiling tests compared dollar caps inside the Modes table and the README mir
 - Smoke each treg endpoint with the documented call shape before writing the allowlist, so `domain_type` lands in the spec instead of in a 400.
 - Pick a smoke topic the free layer cannot close, so a balanced run actually opens the paid family.
 - Keep Codex on medium effort from the start. The first U1-U5 dispatch ran at high and was cancelled and restarted at medium.
+- Wrap every headless `grok -p` in `timeout` from day one. The 19 October run sat for 3 days after finishing.
+- Read `treg catalog get` for each new endpoint's billing notes before adding it, so the crawl4ai 4x rule lands in the first draft.
+- Run the installer twice in a temp HOME before shipping it.
+- Prove each paid facet with one direct call as soon as it is added. The free layer is good enough that skill runs rarely reach those endpoints.
 
 ---
 
@@ -434,6 +469,12 @@ The plan was to watch `--balanced` open the treg paid family. The free run had l
 **Codex ran hot, then cold.**
 The U1-U5 hand-off went to Codex `gpt-6.1-sol` at high effort. Mid-run, the instruction came back: medium only for sol. Stopping the shell did not stop Codex. The job kept running on the app-server side, reading eval scenarios, until `codex-companion.mjs cancel` killed it. The tree was still clean, so the restart at medium lost nothing. That run implemented all five units, 62 tests green, in one pass. The cancel is now part of the routine: stop the shell task, then cancel the companion job, then check `git status` before relaunching.
 
+**The research that finished on Saturday and was still running on Tuesday.**
+The third Grok balanced run went out under the background runner on 19 October. Days later, the question was "it's been 78h, what's this task?" `ps` said pid 30391 had been alive 3 days and 6 hours. The JSON output file was empty, and so was stderr. It looked like a stuck research run. The Grok session log told a different story. The turn had ended about twenty minutes after it started: 48 turns, `end_turn`, a full Step 6 report with Tools Used and the closing line, and a vault note written. A cmux stop hook had failed on a dead socket, Grok had spawned subagents, and the CLI simply never exited. The fix being tested, the "never end without a report" rule, had worked. The harness around it had not. Killing the process cost nothing, the report came out of `chat_history.jsonl`, and every headless run since has a `timeout`.
+
+**The thorough run that still found everything for free.**
+After the facets landed, the obvious test was `--thorough` on Notion, a topic built to need TikTok, App Store reviews, and prices. The run came back with all of it: a 4.8 rating from 90K App Store reviews, Plus at USD 11.99 a month in the App Store against USD 10 on the website, a dissent about annual versus monthly pricing, and TikTok creators by name. It spent USD 0. The free treg fetch had read the App Store page, the Play listing, the pricing page, and TikTok's discover page directly. The skill did its job, and the smoke still proved nothing about the paid facets. The answer was the boring one: call one endpoint per facet type by hand and watch the balance. TikTok search, Google Shopping, and App Store reviews each billed exactly the catalog price, USD 0.0008 in total. Along the way the catalog's fine print gave up the crawl4ai 4x rule, which no skill run would have hit until an Amazon call quietly cost more than the ceiling.
+
 ---
 
 ## Quick Reference
@@ -447,3 +488,7 @@ The U1-U5 hand-off went to Codex `gpt-6.1-sol` at high effort. Mid-run, the inst
 - Money in SKILL.md is written `USD 0.05`, never with a dollar sign before a digit. Claude Code substitutes `$0`, `$1`, and so on with arguments.
 - treg call shapes: TinyFish search takes `query` plus `domain_type` (`web` or `news`) in the `query` slot. Fetch takes `body` `{"urls": [...], "format": "markdown"}`. AnyAPI trims (`max_items`, `fields`) go in `query`, never `body`. Every paid call sends `X-Treg-Route-Max-Cost` in `headers`.
 - Stopping a Codex shell task does not stop the Codex job. Run `codex-companion.mjs cancel <job>`, then check `git status` before relaunching.
+- New Mac: put the real token in `~/.zshenv` as `export TREG_TOKEN="..."`, then run `source ~/.zshenv`, `scripts/install.sh --check`, `scripts/install.sh --with-treg` (add `--force` to replace an old token), and `scripts/install.sh --check` again. Restart each host afterwards.
+- After any install, rsync the skill into both `~/Projects/skill-pack/*/free-research` copies and run `FREE_RESEARCH_CHECK_COPIES=1 python3 -m unittest discover -s tests`.
+- treg CLI for one-off checks: `treg balance`, `treg catalog search "<task>"`, `treg catalog get <id>` (read the limits line), `treg call <id> ...`. Each call prints its charge on stderr.
+- Model fallback for delegated work: Codex gpt-6.1-sol at medium effort, plus Grok. When Codex is out, use Gemini 4 Argon (`agy --model gemini-4-argon-high`) or a Sonnet 5.5 subagent.
