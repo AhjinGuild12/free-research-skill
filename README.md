@@ -18,15 +18,25 @@ scripts/install.sh --check
 
 `--check` reports each host's installed skill version, last30days presence, treg MCP configuration, older duplicate installs, and whether `FREE_RESEARCH_NOTES_DIR` is set. It reports presence only and never prints that variable's value or a token. Check mode does not install or change anything.
 
-`scripts/install.sh` copies the complete `skills/free-research/` tree, including `references/` and `scripts/`, into the user skills folder for each supported host present: Claude Code (`~/.claude/skills/free-research/`), Grok (`~/.grok/skills/free-research/`), and Codex (`~/.codex/skills/free-research/`). A host is detected by its CLI on PATH or its existing config directory. Copies are regular files, without symlinks. It names and refuses a destination file newer than the repo copy unless you pass `--force`; inspect and reconcile those edits before forcing an update.
+`scripts/install.sh` copies the complete `skills/free-research/` tree, including `references/` and `scripts/`, into each detected host's skills folder:
 
-`--with-treg` also adds the treg MCP connection through each available host CLI. It reads `TREG_TOKEN` from the environment; supply the token there before running it. The token is never printed or stored in the repo or skill files. Codex stores an environment-variable reference; Claude Code and Grok store the auth header in their own user config. A missing token leaves MCP setup pending, without making MCP add calls. An existing treg configuration is skipped unless `--force` is supplied. A detected config directory without its CLI can receive the skill copy, but MCP setup needs that host CLI. Plain `scripts/install.sh` copies the skill without configuring treg.
+| Host | Install method | Skill destination | Detected by |
+| --- | --- | --- | --- |
+| Claude Code | `scripts/install.sh` | `~/.claude/skills/free-research/` | `claude` on PATH or `~/.claude` |
+| Grok | `scripts/install.sh` | `~/.grok/skills/free-research/` | `grok` on PATH or `~/.grok` |
+| Codex | `scripts/install.sh` | `~/.codex/skills/free-research/` | `codex` on PATH or `~/.codex` |
+| Gemini (agy) | `scripts/install.sh` | `~/.gemini/skills/free-research/` | `agy` on PATH or `~/.gemini` |
+| any Agent Skills host | `scripts/install.sh` | `~/.agents/skills/free-research/` | Existing `~/.agents/skills`, or explicit `--agents-dir PATH` |
+
+`--agents-dir PATH` selects and enables a custom shared skills directory, creating it if needed. Without that flag, an absent `~/.agents/skills` is skipped quietly. Gemini's Antigravity CLI (`agy`) loads skills from `~/.gemini/skills`. Copies are regular files, without symlinks. The installer names and refuses a destination file newer than the repo copy unless you pass `--force`; inspect and reconcile those edits before forcing an update.
+
+`--with-treg` also adds the treg MCP connection through each available host CLI. It reads `TREG_TOKEN` from the environment; supply the token there before running it. The token is never printed or stored in the repo or skill files. Codex stores an environment-variable reference; Claude Code, Grok, and Gemini (agy) store the auth header in their own user config. A missing token leaves MCP setup pending, without making MCP add calls. An existing treg configuration is skipped unless `--force` is supplied. A detected config directory without its CLI can receive the skill copy, but MCP setup needs that host CLI. The shared Agent Skills target receives files only; each agent must have treg MCP configured itself. Plain `scripts/install.sh` copies the skill without configuring treg.
 
 `--force` permits replacement of newer destination files and, with `--with-treg`, replacement of an existing treg MCP configuration. It is an explicit overwrite choice, not needed for an ordinary update. After pulling repo updates, repeat the check/install/check flow and start a new host session.
 
-**Grok duplicate warning:** the marketplace plugin can leave an older v1.0.0 install alongside the native skill copy. Check mode flags that duplicate; removal stays your choice through its original install method. Use one install method per host to avoid duplicate `/free-research` commands. The script does not update the separate skill-pack trees; keep the six-copy parity workflow below.
+**Grok duplicate warning:** the marketplace plugin can leave an older v1.0.0 install alongside the native skill copy. Check mode flags that duplicate; removal stays your choice through its original install method. Use one install method per host to avoid duplicate `/free-research` commands. The script does not update the separate skill-pack trees; keep the copy-parity workflow below.
 
-Other [Agent Skills](https://agentskills.io) hosts such as Cursor, Copilot, and Gemini CLI can use `npx skills add AhjinGuild12/free-research-skill -g`. The portable script supports Claude Code, Grok, and Codex on macOS.
+Other [Agent Skills](https://agentskills.io) hosts can use the shared skills folder through this macOS installer, or `npx skills add AhjinGuild12/free-research-skill -g`. Install last30days with `npx skills add mvanhorn/last30days-skill -g`, or copy an existing last30days skill folder into each host's skills directory.
 
 ## Prerequisites
 
@@ -152,7 +162,7 @@ python3 scripts/lint_run_notes.py /absolute/path/to/the-project-folder/runs
 
 ## Manual (developer)
 
-Keep all six copies in sync: repo (`skills/free-research/`), Claude Code (`~/.claude/skills/free-research`), Grok live (`~/.grok/skills/free-research`), Grok pack (`~/Projects/skill-pack/grok/free-research`), Codex (`~/.codex/skills/free-research`), and Codex pack (`~/Projects/skill-pack/codex/free-research`). Copy the complete skill tree, including `references/` and `scripts/`. `scripts/run_note.py` is the skill-local note helper. Do not symlink this repo over a newer live tree. The installed plugin checkout is a separate publish and is not updated by that copy.
+Keep all eight parity targets in sync: repo (`skills/free-research/`), Claude Code (`~/.claude/skills/free-research`), Grok live (`~/.grok/skills/free-research`), Grok pack (`~/Projects/skill-pack/grok/free-research`), Codex (`~/.codex/skills/free-research`), Codex pack (`~/Projects/skill-pack/codex/free-research`), Gemini (`~/.gemini/skills/free-research`), and other agents (`~/.agents/skills/free-research`). Copy the complete skill tree, including `references/` and `scripts/`. `scripts/run_note.py` is the skill-local note helper. Do not symlink this repo over a newer live tree. The installed plugin checkout is a separate publish and is not updated by that copy.
 
 ```bash
 git clone https://github.com/AhjinGuild12/free-research-skill.git
