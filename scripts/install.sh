@@ -14,20 +14,27 @@ TREG_URL="https://treg.to/mcp/"
 CHECK=0
 WITH_TREG=0
 FORCE=0
+AGENTS_DIR="$HOME/.agents/skills"
+AGENTS_EXPLICIT=0
 SKIPPED_ANY=0
 SYMLINK_REFUSED=0
 
 usage() {
   cat <<'EOF'
-Usage: scripts/install.sh [--check] [--with-treg] [--force] [--help]
+Usage: scripts/install.sh [--check] [--with-treg] [--force] [--agents-dir PATH] [--help]
 
 Copy skills/free-research into each present host's skills directory.
 A host is present when its CLI is on PATH or its config directory exists
-(~/.claude, ~/.grok, or ~/.codex). The copy is real files, not a symlink.
+(~/.claude, ~/.grok, ~/.codex, or ~/.gemini). Existing ~/.agents/skills
+also receives a copy. The copy is real files, not a symlink.
 __pycache__ and .DS_Store are skipped. A destination file newer than the
 repo file is left in place unless --force.
 
 Options:
+  --agents-dir PATH
+                Install for other agents in PATH, even if it does not exist.
+                Default: ~/.agents/skills (used only when it exists).
+                Configure treg MCP separately in each of these agents.
   --check       Print one status block per host and a next-steps list.
                 Does not copy files or add MCP servers. Always exits 0.
   --with-treg   Add the treg MCP server (https://treg.to/mcp/) for each
@@ -240,6 +247,12 @@ config_has_treg() {
         return 0
       fi
       ;;
+    agy)
+      file="$HOME/.gemini/antigravity/mcp_config.json"
+      if [[ -f "$file" ]] && json_has_treg_key "$file"; then
+        return 0
+      fi
+      ;;
   esac
   return 1
 }
@@ -400,7 +413,7 @@ print_next_steps() {
   local any=0
   local cli config_dir label dups token_env
   printf '%s\n' "Next steps"
-  for spec in "claude|.claude|Claude Code" "grok|.grok|Grok" "codex|.codex|Codex"; do
+  for spec in "claude|.claude|Claude Code" "grok|.grok|Grok" "codex|.codex|Codex" "agy|.gemini|Gemini (agy)"; do
     cli=${spec%%|*}
     spec=${spec#*|}
     config_dir=${spec%%|*}
@@ -415,7 +428,7 @@ print_next_steps() {
       any=1
     fi
     if ! last30days_present "$HOME/$config_dir"; then
-      printf '%s\n' "- Install last30days for ${label} (skills directory or plugin cache)."
+      printf '%s\n' "- Install last30days for ${label}: npx skills add mvanhorn/last30days-skill -g, or copy an existing last30days skill folder into ~/${config_dir}/skills."
       any=1
     fi
     if ! treg_configured "$cli"; then
@@ -434,6 +447,16 @@ print_next_steps() {
       any=1
     fi
   done
+  if agents_present; then
+    if [[ ! -f "$AGENTS_DIR/free-research/SKILL.md" ]]; then
+      printf '%s\n' "- Run scripts/install.sh with the same --agents-dir selection to install the skill for Other agents."
+      any=1
+    fi
+    if [[ ! -d "$AGENTS_DIR/last30days" ]]; then
+      printf '%s\n' "- Install last30days for Other agents: npx skills add mvanhorn/last30days-skill -g, or copy an existing last30days skill folder into ${AGENTS_DIR}."
+      any=1
+    fi
+  fi
   dups=$(duplicate_names || true)
   if [[ -n "$dups" ]]; then
     printf '%s\n' "- Grok marketplace duplicate is present (free-research-skill-*). Remove it if you want only the native skill."
@@ -448,7 +471,35 @@ print_check() {
   print_host_status "Claude Code" claude .claude
   print_host_status "Grok" grok .grok
   print_host_status "Codex" codex .codex
+  print_host_status "Gemini (agy)" agy .gemini
+  print_agents_status
   print_next_steps
+}
+
+agents_present() {
+  [[ "$AGENTS_EXPLICIT" -eq 1 || -d "$AGENTS_DIR" ]]
+}
+
+print_agents_status() {
+  local version
+  printf '%s\n' "== Other agents (~/.agents/skills) =="
+  if agents_present; then
+    printf '%s\n' "host: found (skills directory selected)"
+  else
+    printf '%s\n' "host: not found"
+  fi
+  if [[ -f "$AGENTS_DIR/free-research/SKILL.md" ]]; then
+    version=$(skill_version "$AGENTS_DIR/free-research/SKILL.md")
+    printf '%s\n' "skill: installed ${version:-(version unknown)}"
+  else
+    printf '%s\n' "skill: not installed"
+  fi
+  if [[ -d "$AGENTS_DIR/last30days" ]]; then
+    printf '%s\n' "last30days: present"
+  else
+    printf '%s\n' "last30days: missing"
+  fi
+  printf '%s\n\n' "treg MCP: each agent must have treg MCP configured itself."
 }
 
 # Lists every real file and directory under the skill source, one per call.
@@ -541,6 +592,12 @@ install_skills() {
   if host_present codex .codex; then
     copy_skill "Codex" "$HOME/.codex/skills/free-research"
   fi
+  if host_present agy .gemini; then
+    copy_skill "Gemini (agy)" "$HOME/.gemini/skills/free-research"
+  fi
+  if agents_present; then
+    copy_skill "Other agents" "$AGENTS_DIR/free-research"
+  fi
 }
 
 report_missing() {
@@ -555,6 +612,9 @@ report_missing() {
   if ! host_present codex .codex; then
     missing[${#missing[@]}]="Codex"
   fi
+  if ! host_present agy .gemini; then
+    missing[${#missing[@]}]="Gemini (agy)"
+  fi
   count=${#missing[@]}
   if [[ "$count" -eq 0 ]]; then
     return 0
@@ -567,7 +627,11 @@ report_missing() {
     printf '%s\n' "${missing[0]} and ${missing[1]} were not found."
     return 0
   fi
-  printf '%s\n' "${missing[0]}, ${missing[1]}, and ${missing[2]} were not found."
+  if [[ "$count" -eq 3 ]]; then
+    printf '%s\n' "${missing[0]}, ${missing[1]}, and ${missing[2]} were not found."
+  else
+    printf '%s\n' "${missing[0]}, ${missing[1]}, ${missing[2]}, and ${missing[3]} were not found."
+  fi
 }
 
 # Runs a host CLI, capturing combined output in MCP_OUTPUT and status in MCP_STATUS.
@@ -605,6 +669,7 @@ remove_treg_host() {
     claude) run_mcp_capture claude mcp remove treg -s user ;;
     grok) run_mcp_capture grok mcp remove treg ;;
     codex) run_mcp_capture codex mcp remove treg ;;
+    agy) run_mcp_capture agy mcp remove treg ;;
     *)
       printf '%s\n' "Unknown host: ${cli}" >&2
       return 1
@@ -662,6 +727,12 @@ add_treg_host() {
         return 1
       }
       ;;
+    agy)
+      run_mcp_add agy mcp add -H "Authorization: Bearer ${TREG_TOKEN}" treg "$TREG_URL" || {
+        HOST_RESULT="FAILED (add)"
+        return 1
+      }
+      ;;
     *)
       printf '%s\n' "Unknown host: ${cli}" >&2
       HOST_RESULT="FAILED (unknown host)"
@@ -681,7 +752,7 @@ add_treg() {
   local failed=0
   local results=""
   local spec cli config_dir label
-  for spec in "claude|.claude|Claude Code" "grok|.grok|Grok" "codex|.codex|Codex"; do
+  for spec in "claude|.claude|Claude Code" "grok|.grok|Grok" "codex|.codex|Codex" "agy|.gemini|Gemini (agy)"; do
     cli=${spec%%|*}
     spec=${spec#*|}
     config_dir=${spec%%|*}
@@ -706,6 +777,15 @@ while [[ $# -gt 0 ]]; do
     --check) CHECK=1 ;;
     --with-treg) WITH_TREG=1 ;;
     --force) FORCE=1 ;;
+    --agents-dir)
+      if [[ $# -lt 2 || -z "$2" || "$2" == -* ]]; then
+        printf '%s\n' "--agents-dir requires a path." >&2
+        exit 2
+      fi
+      AGENTS_DIR="$2"
+      AGENTS_EXPLICIT=1
+      shift
+      ;;
     --help | -h)
       usage
       exit 0

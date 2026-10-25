@@ -1,6 +1,6 @@
 """Pin scripts/install.sh: copy, refuse newer files, treg opt-in, check secrets.
 
-The fake claude, grok, and codex binaries append each invocation's argv to a
+The fake claude, grok, codex, and agy binaries append each invocation's argv to a
 log outside the repo. They do not talk to a real host.
 """
 
@@ -121,7 +121,7 @@ class InstallScriptTest(unittest.TestCase):
     def leaks(self, needle: str) -> list[str]:
         """Repo files plus every installed skill tree under the temp HOME."""
         hits = repo_files_containing(needle)
-        for host in (".claude", ".grok", ".codex"):
+        for host in (".claude", ".grok", ".codex", ".gemini", ".agents"):
             tree = self.home / host / "skills" / "free-research"
             hits.extend(f"{host}/{hit}" for hit in files_containing(needle, tree))
         return hits
@@ -237,6 +237,113 @@ class InstallScriptTest(unittest.TestCase):
         for host in (".claude", ".grok", ".codex"):
             self.assert_real_tree(self.home / host / "skills" / "free-research")
 
+    def test_gemini_and_agents_receive_identical_trees_and_check_blocks(self) -> None:
+        self.write_fake("agy")
+        (self.home / ".agents" / "skills").mkdir(parents=True)
+        for _ in range(2):
+            result = self.run_install([])
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            for host in (".gemini", ".agents"):
+                self.assert_real_tree(self.home / host / "skills" / "free-research")
+        before = skill_snapshot(self.home)
+        check = self.run_install(["--check"])
+        self.assertEqual(check.returncode, 0, check.stderr)
+        blocks = _status_blocks(check.stdout)
+        for label in ("Gemini (agy)", "Other agents (~/.agents/skills)"):
+            self.assertIn("skill: installed 1.4.0", blocks[label])
+            self.assertIn("last30days: missing", blocks[label])
+        self.assertIn("each agent must have treg MCP configured itself", check.stdout)
+        for host in (".gemini", ".agents"):
+            self.assertIn(f"{host}/skills", check.stdout)
+            (self.home / host / "skills" / "last30days").mkdir()
+        self.assertIn("npx skills add mvanhorn/last30days-skill -g", check.stdout)
+        self.assertIn("copy an existing last30days skill folder", check.stdout)
+        present = _status_blocks(self.run_install(["--check"]).stdout)
+        for label in ("Gemini (agy)", "Other agents (~/.agents/skills)"):
+            self.assertIn("last30days: present", present[label])
+        self.assertEqual(skill_snapshot(self.home), before)
+        self.assertEqual(self.mcp_writes(), [])
+
+    def test_gemini_config_dir_without_cli_receives_skill(self) -> None:
+        (self.home / ".gemini").mkdir()
+        result = self.run_install(["--with-treg"], TREG_TOKEN="fake-token")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_real_tree(self.home / ".gemini" / "skills" / "free-research")
+        self.assertIn("Gemini (agy): treg MCP skipped (CLI not found)", result.stdout)
+
+    def test_agents_absent_is_quiet_and_explicit_directory_enables_copy(self) -> None:
+        result = self.run_install([])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse((self.home / ".agents").exists())
+        self.assertNotIn("Other agents", result.stdout + result.stderr)
+        custom = self.home / "custom skills"
+        result = self.run_install(["--agents-dir", str(custom), "--with-treg"], TREG_TOKEN="fake-token")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_real_tree(custom / "free-research")
+        self.assertFalse((self.home / ".agents").exists())
+        self.assertEqual(self.mcp_writes(), [])
+        check = self.run_install(["--agents-dir", str(custom), "--check"])
+        self.assertIn("skill: installed", _status_blocks(check.stdout)["Other agents (~/.agents/skills)"])
+        for args in (["--agents-dir"], ["--agents-dir", ""], ["--agents-dir", "--check"]):
+            self.assertEqual(self.run_install(args).returncode, 2)
+
+    def test_agy_add_flags_force_order_and_failure_redaction(self) -> None:
+        self.write_fake("agy")
+        (self.home / ".agents" / "skills").mkdir(parents=True)
+        token = "frtok-" + uuid.uuid4().hex
+        result = self.run_install(["--with-treg"], TREG_TOKEN=token)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.mcp_adds("agy"), [[
+            "mcp", "add", "-H", f"Authorization: Bearer {token}",
+            "treg", "https://treg.to/mcp/",
+        ]])
+        self.assertNotIn(token, result.stdout + result.stderr)
+        self.assertEqual(self.leaks(token), [])
+        config = self.home / ".gemini" / "antigravity" / "mcp_config.json"
+        config.parent.mkdir()
+        config.write_text('{"mcpServers": {"treg": {}}}')
+        self.log_path.write_text("")
+        skipped = self.run_install(["--with-treg"], TREG_TOKEN=token)
+        self.assertEqual(skipped.returncode, 0, skipped.stderr)
+        self.assertEqual(self.mcp_writes(), [])
+        scenarios = (
+            ({}, ["remove", "add"], 0, "replaced"),
+            ({"FAKE_ADD_FAIL_CLIS": "agy"}, ["remove", "add"], 1, "FAILED (add)"),
+            ({"FAKE_REMOVE_FAIL_CLIS": "agy"}, ["remove"], 1, "FAILED (remove)"),
+            ({"FAKE_REMOVE_NOTFOUND_CLIS": "agy"}, ["remove", "add"], 0, "replaced"),
+        )
+        for extra, verbs, status, outcome in scenarios:
+            with self.subTest(extra=extra):
+                self.log_path.write_text("")
+                forced = self.run_install(["--with-treg", "--force"], TREG_TOKEN=token, **extra)
+                self.assertEqual(forced.returncode, status, forced.stderr)
+                self.assertEqual(self.mcp_writes(), [("agy", verb) for verb in verbs])
+                self.assertIn(f"Gemini (agy): treg MCP {outcome}", forced.stdout)
+                if "remove" in verbs:
+                    self.assertIn(["mcp", "remove", "treg"], self.calls_for("agy"))
+                self.assertNotIn(token, forced.stdout + forced.stderr)
+                self.assertEqual(self.leaks(token), [])
+
+    def test_agy_configured_detection_requires_key_or_successful_whole_word(self) -> None:
+        self.write_fake("agy")
+        config = self.home / ".gemini" / "antigravity" / "mcp_config.json"
+        config.parent.mkdir(parents=True)
+        cases = (
+            ('{"mcpServers": {"treg": {}}}', "", "1", True),
+            ('{"mcpServers": {"other": {"treg": {}}}}', "", "0", False),
+            ('{"history": "treg"}', "treg-extra pretreg treg_foo", "0", False),
+            ('{}', "treg", "1", False),
+            ('{}', "treg: connected", "0", True),
+        )
+        for contents, listing, status, configured in cases:
+            with self.subTest(contents=contents, listing=listing, status=status):
+                config.write_text(contents)
+                self.mcp_list_path.write_text(listing)
+                check = self.run_install(["--check"], FAKE_MCP_LIST_STATUS=status)
+                block = _status_blocks(check.stdout)["Gemini (agy)"]
+                self.assertIn("treg MCP: configured" if configured else "treg MCP: not configured", block)
+        self.assertEqual(self.mcp_writes(), [])
+
     def test_only_claude_present_names_missing_hosts(self) -> None:
         self.write_fake("claude")
         result = self.run_install([])
@@ -244,7 +351,7 @@ class InstallScriptTest(unittest.TestCase):
         self.assert_real_tree(self.home / ".claude" / "skills" / "free-research")
         self.assertFalse((self.home / ".grok").exists())
         self.assertFalse((self.home / ".codex").exists())
-        self.assertIn("Grok and Codex were not found.", result.stdout)
+        self.assertIn("Grok, Codex, and Gemini (agy) were not found.", result.stdout)
 
     def test_config_dir_without_cli_still_receives_skill(self) -> None:
         (self.home / ".grok").mkdir()
@@ -253,7 +360,7 @@ class InstallScriptTest(unittest.TestCase):
         self.assert_real_tree(self.home / ".grok" / "skills" / "free-research")
         self.assertFalse((self.home / ".claude").exists())
         self.assertFalse((self.home / ".codex").exists())
-        self.assertIn("Claude Code and Codex were not found.", result.stdout)
+        self.assertIn("Claude Code, Codex, and Gemini (agy) were not found.", result.stdout)
         self.assertEqual(self.all_mcp_adds(), [])
 
     def test_with_treg_sends_mcp_add_and_hides_token(self) -> None:

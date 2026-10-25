@@ -479,6 +479,8 @@ After the facets landed, the obvious test was `--thorough` on Notion, a topic bu
 
 ## Quick Reference
 
+- Gemini (agy): `scripts/install.sh --with-treg` installs into `~/.gemini/skills/free-research`; other Agent Skills hosts receive `~/.agents/skills/free-research` when that skills directory exists (or use `--agents-dir PATH`), and need treg MCP configured in each agent.
+
 - Ceilings for treg, Exa, Firecrawl, and Brave: SKILL.md's Modes table. README must match. `parallel-cli` caps live in `references/tool-routing.md`.
 - Tests, from the repo root: `python3 -m unittest discover -s tests`. They do not spend credits. Copy parity is opt-in: `FREE_RESEARCH_CHECK_COPIES=1`.
 - Lint a notes folder: `python3 scripts/lint_run_notes.py /absolute/path/to/the-project-folder/runs`. Version-2 problems are errors. Legacy notes are warnings. Exit 0 can still print warnings.
