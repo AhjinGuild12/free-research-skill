@@ -4,7 +4,7 @@
 
 ## Current state (2026-11-03)
 
-Version 1.5.0 adds the podcast facet on `feat/podcast-facet`. It has not been installed or merged. The previous version 1.4.0 is on `main` (PR #6 merged as `7d684f2`, after PR #5 as `2b53d2a`). At that release, all six copies matched: repo, Claude Code, Grok live, Grok pack, Codex, Codex pack. `scripts/install.sh --check` on this Mac reported 1.4.0 for the previous version and treg configured on all three hosts, with `TREG_TOKEN set` for Codex. That release recorded 115 passing tests.
+Version 1.5.0 adds the podcast facet on `feat/podcast-facet`. It is installed on this Mac but not merged yet. The previous version 1.4.0 is on `main` (PR #6 merged as `7d684f2`, after PR #5 as `2b53d2a`). At that release, all six copies matched: repo, Claude Code, Grok live, Grok pack, Codex, Codex pack. `scripts/install.sh --check` on this Mac reported 1.4.0 for the previous version and treg configured on all three hosts, with `TREG_TOKEN set` for Codex. That release recorded 115 passing tests.
 
 Live proof on this Mac:
 
@@ -40,6 +40,12 @@ The paid test on 2026-11-03 spent USD 0.045 total. Search cost USD 0.007 with fi
 The transcript starts with show and episode metadata, then `## Transcript`, then speaker turns in the form `**<speaker> · <start>–<end>**`. Some speakers are `Unidentified Speaker 0`. Names can be wrong: the metadata listed host "Greg Turnquist", while the words said "Greg Tanklist". Findings name the speaker, show, episode, date, and available timestamp, say they came from a transcript, and flag names and numbers they depend on as transcript-sourced. A transcript proves what the speaker said, not whether it is true.
 
 The plan's free-fetch-first step and search-text fallback were dropped because of this test. Search gets highlights only; discovered index episodes go straight to the paid transcript read. The invocation reads at most two episodes, still inside the Modes-table budgets. No YouTube branch is needed with the episode filter. A returned suggestion to use `treg.web.search` is ignored; that route stays forbidden.
+
+Live smokes on 2026-11-03 ran the same audio-only Filipino show on each host. Claude Code, the Codex CLI, and Grok each called `exa.web.search` with the filter, read one transcript, spent USD 0.008, and skipped the free fetch of the index URL. The balance change matched. Three things are worth remembering:
+
+- **A YouTube copy wins.** The first Claude Code smoke asked about a show that is also on YouTube, and the agent read the captions for USD 0.00188 instead. That is allowed and cheaper, but it proves nothing about the Exa route, so test with an audio-only show.
+- **Codex inside T3 Code has no treg.** Its long-running Codex servers do not have `TREG_TOKEN`, because they did not start from a shell that reads `.zshenv`. The Codex CLI in a terminal works fine, and `scripts/install.sh --check` still says configured because it reads its own shell. Inside T3 Code, those Codex threads fall back to free sources.
+- **Gemini is unproven, and Grok has an old copy.** Gemini hit its usage limit before the smoke could run. Grok's marketplace duplicate `free-research-skill-2bcb5165` is still version 1.0.0, and the Grok run read that body first before correcting itself.
 
 ## Why personal accounts stayed out
 
