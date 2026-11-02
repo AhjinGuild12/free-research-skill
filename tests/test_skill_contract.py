@@ -760,6 +760,7 @@ class TestSkillContract(unittest.TestCase):
                 self.assertEqual(["exa.ai/library/podcast"], body["includeDomains"])
                 self.assertEqual(5, body["numResults"])
                 self.assertNotIn("text", body)
+                self.assertNotIn("text", body["contents"])
                 self.assertEqual(300, body["contents"]["highlights"]["maxCharacters"])
         self.assertGreaterEqual(len(requests), 2)
 

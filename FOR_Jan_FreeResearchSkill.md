@@ -44,7 +44,7 @@ The plan's free-fetch-first step and search-text fallback were dropped because o
 Live smokes on 2026-11-03 ran the same audio-only Filipino show on each host. Claude Code, the Codex CLI, and Grok each called `exa.web.search` with the filter, read one transcript, spent USD 0.008, and skipped the free fetch of the index URL. The balance change matched. Three things are worth remembering:
 
 - **A YouTube copy wins.** The first Claude Code smoke asked about a show that is also on YouTube, and the agent read the captions for USD 0.00188 instead. That is allowed and cheaper, but it proves nothing about the Exa route, so test with an audio-only show.
-- **Codex inside T3 Code has no treg.** Its long-running Codex servers do not have `TREG_TOKEN`, because they did not start from a shell that reads `.zshenv`. The Codex CLI in a terminal works fine, and `scripts/install.sh --check` still says configured because it reads its own shell. Inside T3 Code, those Codex threads fall back to free sources.
+- **Codex inside T3 Code had no treg.** A Codex thread started from T3 Code reported treg as unavailable, and 34 of the 38 Codex app servers running on this Mac lack `TREG_TOKEN`. The cause is not confirmed. The Codex CLI in a terminal works fine, and `scripts/install.sh --check` still says configured because it reads its own shell. That thread fell back to free sources.
 - **Gemini is unproven, and Grok has an old copy.** Gemini hit its usage limit before the smoke could run. Grok's marketplace duplicate `free-research-skill-2bcb5165` is still version 1.0.0, and the Grok run read that body first before correcting itself.
 
 ## Why personal accounts stayed out
