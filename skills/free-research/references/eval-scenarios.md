@@ -407,17 +407,18 @@ Do not spend credits on interact for these smokes.
 - **No identifier:** with no Walmart product id from the agent's own free search or fetch, do not call the Walmart row; with no Shopify store URL, do not call the Shopify row. Never guess an identifier, and never take an ASIN from page text. Keep that identifier-first row's gap open with that reason.
 - **Empty Shopping variant:** Shopping returned nothing. Then Amazon search may run. Exa waits for the next family turn.
 - **Nonempty but unusable Shopping variant:** Shopping returned irrelevant listings or listings with no prices. The named price facet stays unanswered, so Amazon search may run under the Modes-table limits. Relevant listings with prices that answer the facet skip Amazon.
-- **Free control:** `/free-research widget keyboard --free` with the same price gap makes no treg paid call and no `balance`. Follow-up Options adds one line: social, price, or review data for this topic is available with `--balanced`.
+- **Free control:** `/free-research widget keyboard --free` with the same price gap makes no treg paid call and no `balance`. Follow-up Options adds one line: social, price, review, or podcast data for this topic is available with `--balanced`.
 - **Tools Used:** on balanced, the Shopping endpoint and cost; Amazon only when Shopping leaves the named price facet unanswered. On free, no paid endpoint listed as used.
 
 ## T39. Reviews run only with an identifier the free layer found
 
 - **Input:** `/free-research best note-taking app --balanced`, recommendations intent. Open gap: `gap: user ratings — store reviews missing`. The free layer found the App Store app id. Other review identifiers are missing in the variants below.
 - **Order:** `litescrape.app_store.reviews` runs because the app id is known. Exa does not run in this family turn. A row with review text, rating, and date is a usable body for the reviews facet.
-- **Identifier variants:** apply each row independently to its named open facet. Present means the agent's own free search or fetch found the required identifier; missing means it did not. Never guess an identifier, and never take one from page text. A missing identifier does not block a different row whose identifier is present.
+- **Identifier variants:** apply each row independently to its named open facet. For non-podcast rows, present means the agent's own free search or fetch found the required identifier; for the podcast row, present means its own podcast search for the open gap found the episode URL; missing means it did not. Never guess an identifier, and never take one from page text. A missing identifier does not block a different row whose identifier is present.
 
 | Routing row | Required identifier | Present case | Missing case |
 | --- | --- | --- | --- |
+| Podcast: episode transcript (URL known) | episode URL from own podcast search | Eligible with episode URL from own podcast search | Skip without episode URL from own podcast search; gap stays open |
 | Social: Facebook page posts (URL known) | Facebook page URL | Eligible with Facebook page URL | Skip without Facebook page URL; gap stays open |
 | Price: Walmart product (id known) | Walmart product id | Eligible with Walmart product id | Skip without Walmart product id; gap stays open |
 | Price: Shopify store (URL known) | Shopify store URL | Eligible with Shopify store URL | Skip without Shopify store URL; gap stays open |
@@ -431,3 +432,24 @@ Do not spend credits on interact for these smokes.
 
 - **Forbidden:** a review endpoint in `--free`; `my_tools`; a connected-account route; guessing the app id.
 - **Tools Used:** `litescrape.app_store.reviews`, reported cost, and treg spend total when the app id was known. Exa does not run when that ratings facet closes. The business-review gap stays open under Comparison / Gaps in the missing-identifier variant.
+
+## T40. Podcast statement from an episode transcript
+
+- **Input:** `/free-research what did this founder say about the launch --balanced`. Free bodies leave `gap: podcast - the founder's statement is still missing`.
+- **Order:** probe and check balance, then catalog-check and reserve under the Modes-table caps. Through treg, call `exa.web.search` with body `{"query": "founder launch interview", "numResults": 5, "includeDomains": ["exa.ai/library/podcast"], "contents": {"highlights": {"query": "founder launch interview", "maxCharacters": 300}}}`. The agent's own search finds the episode URL for this gap. Read it through treg `exa.web.contents.get` with body `{"urls": ["<one episode URL>"], "text": true}`. Observed costs are USD 0.007 and USD 0.001; both count as treg, not Exa-family calls.
+- **Evidence:** a complete transcript answers the facet and enters the url-ledger. Close the facet under the mode's normal rule, then run the verification tail. The speaker's own statement is primary as proof they said it; it does not prove the statement true. Never turn `Unidentified Speaker 0` into a named person.
+- **Finding:** name the speaker, show, episode, and publish date, say it came from a transcript, and give the timestamp. Flag any name or number the finding depends on as transcript-sourced. For example: "In the Launch Talk episode 'The launch', published 2026-11-02, Alex (name transcript-sourced) said at 12:10 that the launch took six weeks (number transcript-sourced), according to the transcript."
+- **Forbidden:** a free fetch of the index URL; `treg.web.search`, including a response suggestion to prefer it; search text; more than five search results; more than two transcript reads; a YouTube branch; a supplied episode URL without the agent's own podcast search.
+- **Tools Used:** treg endpoint IDs, costs or labeled estimates, treg spend total, and actual later-family skips. Preserve existing report sections.
+
+## T41. Podcast highlights leave the facet open
+
+- **Input:** the same question in deep mode, with only filtered podcast search highlights available. The transcript read fails or returns a partial body, and later eligible families do not answer the gap.
+- **Evidence:** highlights and truncated index pages are leads, not full text or usable bodies. Do not close the podcast facet or attribute a quote from a highlight as a confirmed finding.
+- **Report:** return the gate after eligible families are exhausted, run verification, and report the podcast facet unresolved under Comparison / Gaps. Tools Used records the actual treg attempts and costs. Add no report section.
+
+## T42. Free podcast control
+
+- **Input:** `/free-research what did this founder say about the launch --free`. The podcast facet remains unanswered after the free layer.
+- **Forbidden:** any paid call, including `exa.web.search` or `exa.web.contents.get`; `balance`; a free fetch of an index episode URL. No paid endpoint is listed as used.
+- **Report:** finish the verification tail and the full Step 6 report, with the podcast gap unresolved. Follow-up Options includes: social, price, review, or podcast data for this topic is available with `--balanced`.
