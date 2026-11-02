@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import unittest
@@ -36,6 +37,8 @@ TREG_PAID_FIXED = {
 }
 # KTD2 rows, 2026-10-24. Primary then backup. Price cell is the observed price, not a ceiling.
 TREG_FACET_ROWS: dict[str, tuple[tuple[str, ...], str]] = {
+    "Podcast: episode search": (("exa.web.search",), "0.007"),
+    "Podcast: episode transcript (URL known)": (("exa.web.contents.get",), "0.001"),
     "Social: TikTok search": (
         ("crawl4ai.tiktok.search.videos", "tikhub.tiktok.search.videos"),
         "0.0005 / 0.001 per success",
@@ -142,12 +145,12 @@ FACET_ORDER_OWNER = "SKILL.md Step 5 owns the default facet order for each inten
 FACET_ORDER_PHRASES = (
     "reviews, then prices, then social",
     "prices, then reviews, then SERP competitors",
-    "LinkedIn, then X, then YouTube",
-    "X, then Reddit, then TikTok",
+    "LinkedIn, then X, then YouTube, then podcasts",
+    "X, then Reddit, then TikTok, then podcasts",
     "**general:** unchanged",
 )
 FREE_FOLLOWUP_LINE = (
-    "social, price, or review data for this topic is available with `--balanced`"
+    "social, price, review, or podcast data for this topic is available with `--balanced`"
 )
 MODES = ("free", "balanced", "deep", "thorough")
 REPORT_SECTIONS = (
@@ -165,7 +168,7 @@ CLOSING_LINE = "your agent is only as good as the worst source it believed."
 TRACE_IDS = (
     tuple(f"T{number}" for number in range(1, 18))
     + ("T18a", "T18b", "T19", "T20", "T21", "T22", "T23", "L1", "L2")
-    + tuple(f"T{number}" for number in range(24, 40))
+    + tuple(f"T{number}" for number in range(24, 43))
 )
 KEY_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+){1,3}$")
 KEY_MAX_BYTES = 48
@@ -669,7 +672,9 @@ class TestSkillContract(unittest.TestCase):
         ):
             self.assertIn(phrase, block)
         facet_ids = TREG_PAID - TREG_PAID_FIXED
-        self.assertFalse(facet_ids & set(re.findall(r"`([^`]+)`", skill)))
+        routing_prose = "\n".join(line for line in skill.splitlines()
+                                  if not line.startswith("`--free` never escalates"))
+        self.assertFalse(facet_ids & set(re.findall(r"`([^`]+)`", routing_prose)))
         over_ceiling = routing.replace(
             "## treg ops card",
             "| Price: Over ceiling | `crawl4ai.example.over` | 9.99 |\n\n## treg ops card",
@@ -743,8 +748,58 @@ class TestSkillContract(unittest.TestCase):
                 with self.assertRaisesRegex(AssertionError, error):
                     _assert_facet_price_table(mutated, ceiling)
 
+    def test_podcast_search_requests_are_filtered_and_bounded(self) -> None:
+        texts = [TOOL_ROUTING.read_text(), EVAL_SCENARIOS.read_text()]
+        requests = []
+        for text in texts:
+            for raw in re.findall(r'`(\{"query": .*?\})`', text):
+                body = json.loads(raw)
+                if "contents" not in body:
+                    continue
+                requests.append(body)
+                self.assertEqual(["exa.ai/library/podcast"], body["includeDomains"])
+                self.assertEqual(5, body["numResults"])
+                self.assertNotIn("text", body)
+                self.assertNotIn("text", body["contents"])
+                self.assertEqual(300, body["contents"]["highlights"]["maxCharacters"])
+        self.assertGreaterEqual(len(requests), 2)
+
+    def test_podcast_evidence_and_reporting_contract(self) -> None:
+        skill = SKILL_MD.read_text()
+        routing = TOOL_ROUTING.read_text()
+        tail = VERIFICATION_TAIL.read_text()
+        for phrase in (
+            "Name `gap: podcast` only when", "person or news facet remains unanswered",
+            "Interviews in the person checklist map to the podcast facet",
+            "speaker, show, episode, and publish date", "timestamp",
+            "transcript-sourced", "no transcription accuracy figure",
+            "Do not attribute an `Unidentified Speaker` quote to a named person",
+        ):
+            self.assertIn(phrase, skill)
+        for phrase in (
+            "Read at most two episodes per invocation", "one URL and one content type per call",
+            "agent's own podcast search for the open podcast gap",
+            "Do not free-fetch `exa.ai/library/podcast` URLs",
+            "not against the Exa family ceiling", "flat base price of USD 0.007",
+            "never request more results or search `text`",
+        ):
+            self.assertIn(phrase, routing)
+        self.assertIn("complete podcast transcript body that answers the facet", tail)
+        self.assertIn("not for whether that statement is true", tail)
+
+    def test_podcast_endpoints_are_banned_in_free_mode(self) -> None:
+        skill = SKILL_MD.read_text()
+        _assert_free_mode_bans_facet_endpoints(skill)
+        ban = next(line for line in skill.splitlines() if line.startswith("`--free` never escalates"))
+        for endpoint in ("exa.web.search", "exa.web.contents.get"):
+            self.assertIn(f"`{endpoint}`", ban)
+            mutated = skill.replace("### treg free allowlist", f"### treg free allowlist\n`{endpoint}`", 1)
+            with self.assertRaises(AssertionError):
+                _assert_free_mode_bans_facet_endpoints(mutated)
+
     def test_identifier_cases_match_each_routing_row(self) -> None:
         cases = {
+            "Podcast: episode transcript (URL known)": "episode URL from own podcast search",
             "Social: Facebook page posts (URL known)": "Facebook page URL",
             "Price: Walmart product (id known)": "Walmart product id",
             "Price: Shopify store (URL known)": "Shopify store URL",

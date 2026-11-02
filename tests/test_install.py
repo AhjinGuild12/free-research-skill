@@ -250,7 +250,7 @@ class InstallScriptTest(unittest.TestCase):
         self.assertEqual(check.returncode, 0, check.stderr)
         blocks = _status_blocks(check.stdout)
         for label in ("Gemini (agy)", "Other agents (~/.agents/skills)"):
-            self.assertIn("skill: installed 1.4.0", blocks[label])
+            self.assertIn("skill: installed 1.5.0", blocks[label])
             self.assertIn("last30days: missing", blocks[label])
         self.assertIn("each agent must have treg MCP configured itself", check.stdout)
         for host in (".gemini", ".agents"):
